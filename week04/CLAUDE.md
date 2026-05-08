@@ -20,6 +20,6 @@
 ## 검수 절차
 
 1. 결과 파일 생성 → 검수자에게 알림
-2. 2지현이 함께 검수 (`docs/quality-criteria.md` 기준 적용)
+2. 이지현이 함께 검수 (`docs/quality-criteria.md` 기준 적용)
 3. 부적합 사례 → `docs/review-findings.md`에 분류(A/B/C)와 함께 기록
 4. 재실행 필요 항목은 다시 돌림 (프로세스 자체에 문제가 있다면 설계서 보강)
