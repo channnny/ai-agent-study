@@ -1,23 +1,15 @@
-"""유찬 산출물(`week03/output/<대학>/<탭>_전형결과.xlsx`) → 캐노니컬 DataFrame.
+"""유찬 산출물(`week03/output/{unvCd}_{대학}/<탭>_전형결과.xlsx`) → 캐노니컬 DataFrame.
 
-구조 (가천대 기준 — "단순" 패턴):
-  R1: ['모집단위', '<전형명>', '', '', '', '']    ← 첫 셀이 모집단위 라벨, 둘째가 전형명
-  R2: ['모집인원', '경쟁률', '충원합격 순위', '학생부등급', '반영교과', '']
-  R3+: ['<모집단위>', '<모집인원>', '<경쟁률>', '<충원합격 순위>', '<등급>', '<반영교과>']
-  → R2의 헤더가 데이터 col 1+ 위치에 해당 (R3 col 0 = 모집단위, col 1+ = 데이터)
+크롤러가 다단 헤더(rowspan/colspan)를 평면화하므로, 각 시트는 1행 평면 헤더 +
+데이터 구조다. 첫 컬럼은 "전형"(크롤러가 삽입), 그 뒤에 모집단위/모집인원/… 가 온다.
 
-복잡 패턴 (경북대):
-  R1: ['단과대학', '모집단위', '지원 및 등록 현황', '등록기준', '최저기준통과', '입학자 학생부 등급', ...]
-  → 다단 헤더 + 그룹. MVP에선 단순 패턴만 처리, 복잡 패턴은 스킵+로그.
+평면 헤더 예:
+  [전형, 모집단위, 모집인원, 경쟁률, 충원 합격 순위,
+   최종등록자 교과성적 학생부등급 70% cut, … 90% cut]
+경북대(복잡)도 평면화됨:
+  [전형, 단과대학, 모집단위, 지원 및 등록 현황 모집 인원, … 입학자 학생부 등급 평균/50%/70%]
 
-매핑 키워드:
-  - 모집인원: "모집인원" or "모집 인원"
-  - 경쟁률: "경쟁률" (단, "실질경쟁률" 등 변형 제외)
-  - 충원합격순위: "충원합격" or "충원" + "순위"
-  - 학생부등급_평균: "학생부등급" + "평균"
-  - 반영교과: "반영" or "교과목"
-
-# adapted from week03/crawl_adiga.py 실측 출력
+# adapted from week03/crawl_adiga.py 평면화 출력 실측
 """
 from __future__ import annotations
 import pandas as pd
@@ -29,69 +21,75 @@ from ..config import PK_COLUMNS, CANONICAL_COLUMNS, GROUP_LABEL_COL
 from ..normalizer import Normalizer
 
 
-# 캐노니컬 컬럼 → R2 헤더 매칭 키워드 (포함 검사)
-HEADER_KEYWORDS = {
-    "모집인원":      [["모집", "인원"]],   # "모집인원" or "모집 인원"
-    "경쟁률":         [["경쟁률"]],         # but exclude when prefixed with 실질/최초
-    "충원합격순위":   [["충원", "순위"], ["충원합격"]],
-    "학생부등급_평균": [["등급"]],         # 단일 등급 컬럼이면 평균으로 가정
-    "반영교과":       [["반영", "교과"], ["교과목"]],
-}
-
-EXCLUDE_PATTERNS = {
-    "경쟁률": ["실질", "최초"],   # "실질경쟁률", "최초경쟁률"는 일반 경쟁률 아님
-}
-
-
 def _match_canonical(header: str) -> str | None:
-    """R2 헤더 텍스트 → 캐노니컬 컬럼명. 일치 안 되면 None."""
+    """평면 헤더 텍스트 → 캐노니컬 컬럼명. 일치 안 되면 None.
+
+    우선순위가 중요(긴 패턴 먼저) — 예: '학생부등급 70%'는 70컷, '평균'은 평균.
+    """
     if not header:
         return None
-    h = str(header).strip()
-    for canonical, patterns in HEADER_KEYWORDS.items():
-        for kw_group in patterns:
-            if all(kw in h for kw in kw_group):
-                # exclude pattern 체크
-                if canonical in EXCLUDE_PATTERNS:
-                    if any(ex in h for ex in EXCLUDE_PATTERNS[canonical]):
-                        continue
-                return canonical
+    h = str(header).strip().replace(" ", "")  # 공백 제거 ("7 0%"→"70%", "모집 인원"→"모집인원")
+
+    # 학생부 등급 컷 (등급/교과성적 맥락 + 컷 지표)
+    is_grade = ("등급" in h) or ("교과성적" in h)
+    if is_grade:
+        if "50%" in h or "50컷" in h:
+            return "학생부등급_50컷"
+        if "70%" in h or "70컷" in h:
+            return "학생부등급_70컷"
+        if "평균" in h:
+            return "학생부등급_평균"
+        # 90%/85% 등은 캐노니컬에 없음 → 무시
+
+    # 모집인원 (지원인원·입학인원과 구분: '모집'+'인원', '지원'/'입학' 제외)
+    if "모집인원" in h and "지원" not in h and "입학" not in h:
+        return "모집인원"
+
+    # 경쟁률 (실질/최초/지원 변형 제외 — 순수 경쟁률만)
+    if "경쟁률" in h and not any(x in h for x in ("실질", "최초", "지원")):
+        return "경쟁률"
+
+    # 충원/추합 순위
+    if ("충원" in h and "순위" in h) or "충원합격" in h or ("추합" in h and ("번호" in h or "순위" in h)):
+        return "충원합격순위"
+
+    # 반영교과
+    if ("반영" in h and "교과" in h) or "교과목" in h:
+        return "반영교과"
+
     return None
 
 
-def _parse_simple_table(ws, unv_cd: str, university: str, normalizer: Normalizer) -> list[dict]:
-    """단순 패턴(가천대 식) 테이블 1개 파싱."""
+def _parse_flat_table(ws, unv_cd: str, university: str, normalizer: Normalizer) -> list[dict]:
+    """평면화된 시트 1개 파싱. R1=평면 헤더, R2+=데이터. col0='전형'."""
     rows_iter = ws.iter_rows(values_only=True)
-    r1 = next(rows_iter, None)
-    r2 = next(rows_iter, None)
-    if not r1 or not r2:
+    header = next(rows_iter, None)
+    if not header:
         return []
 
-    # R1 col 0 = "모집단위" 라벨인지 확인. 아니면 복잡 패턴 → 스킵
-    if not r1 or len(r1) < 2:
-        return []
-    if r1[0] is None or "모집단위" not in str(r1[0]):
+    # 헤더 → 컬럼 인덱스 매핑
+    col_map: dict[int, str] = {}
+    jeonghyeong_col = None
+    moljip_col = None
+    for i, h in enumerate(header):
+        if h is None:
+            continue
+        hs = str(h).strip()
+        if hs == "전형":
+            jeonghyeong_col = i
+            continue
+        if hs == "모집단위":
+            moljip_col = i
+            col_map[i] = "모집단위"
+            continue
+        cn = _match_canonical(hs)
+        if cn and cn not in col_map.values():  # 첫 매칭 우선(중복 헤더 방지)
+            col_map[i] = cn
+
+    # 모집단위 컬럼이 없으면 신뢰 불가 → 스킵
+    if moljip_col is None:
         return []
 
-    # 전형명 추출: R1 col 1 — normalizer.jeonghyeong()로 정규화
-    raw_jeonghyeong = r1[1]
-    if raw_jeonghyeong is None:
-        return []
-    jeonghyeong = normalizer.jeonghyeong(raw_jeonghyeong)
-    if not jeonghyeong:
-        return []
-
-    # R2 헤더 매핑: R2[i] → 데이터 col (i+1)
-    # 단순 패턴에서 R3 col 0 = 모집단위 데이터, col 1+ = 다른 컬럼 데이터
-    # 따라서 R2[0] = col 1 헤더, R2[1] = col 2 헤더, ...
-    col_to_canonical: dict[int, str] = {0: "모집단위"}  # col 0은 항상 모집단위
-    for i, h in enumerate(r2):
-        canonical = _match_canonical(h)
-        if canonical:
-            data_col = i + 1  # shift right by 1
-            col_to_canonical[data_col] = canonical
-
-    # 데이터 수집
     records = []
     for row in rows_iter:
         if not row or all(c is None for c in row):
@@ -99,10 +97,11 @@ def _parse_simple_table(ws, unv_cd: str, university: str, normalizer: Normalizer
         rec: dict = {c: None for c in CANONICAL_COLUMNS}
         rec["unvCd"] = unv_cd
         rec["대학"] = university
-        rec["전형"] = jeonghyeong
+        if jeonghyeong_col is not None and jeonghyeong_col < len(row):
+            rec["전형"] = normalizer.jeonghyeong(row[jeonghyeong_col])
 
         for i, v in enumerate(row):
-            cn = col_to_canonical.get(i)
+            cn = col_map.get(i)
             if cn is None:
                 continue
             if cn == "모집단위":
@@ -129,10 +128,9 @@ def _parse_simple_table(ws, unv_cd: str, university: str, normalizer: Normalizer
 def load(output_root: Path, normalizer: Normalizer) -> dict[str, pd.DataFrame]:
     """`week03/output/{unvCd}_{대학명}/*.xlsx` 전체 → {unvCd: DataFrame}.
 
-    폴더명 형식: `{unvCd}_{safe_univ}` (예: `0000063_가천대학교`).
+    크롤러가 헤더를 평면화하므로 모든 표를 _parse_flat_table로 처리.
     """
     by_univ: dict[str, list[dict]] = defaultdict(list)
-    skipped_complex = []
 
     if not output_root.exists():
         return {}
@@ -140,7 +138,6 @@ def load(output_root: Path, normalizer: Normalizer) -> dict[str, pd.DataFrame]:
     for univ_dir in sorted(output_root.iterdir()):
         if not univ_dir.is_dir():
             continue
-        # 폴더명에서 unvCd 추출: "0000063_가천대학교" → ("0000063", "가천대학교")
         folder = univ_dir.name
         if "_" in folder:
             unv_cd, univ_name = folder.split("_", 1)
@@ -152,23 +149,10 @@ def load(output_root: Path, normalizer: Normalizer) -> dict[str, pd.DataFrame]:
                 wb = openpyxl.load_workbook(xlsx, read_only=True, data_only=True)
             except Exception:
                 continue
-
             for sn in wb.sheetnames:
-                ws = wb[sn]
-                # 단순 패턴 시도
-                recs = _parse_simple_table(ws, unv_cd, univ_name, normalizer)
+                recs = _parse_flat_table(wb[sn], unv_cd, univ_name, normalizer)
                 if recs:
                     by_univ[unv_cd].extend(recs)
-                else:
-                    skipped_complex.append(f"{folder}/{xlsx.name}#{sn}")
-
-    if skipped_complex:
-        import sys
-        print(f"  [유찬 어댑터] 스킵된 복잡 테이블: {len(skipped_complex)}", file=sys.stderr)
-        for s in skipped_complex[:5]:
-            print(f"    - {s}", file=sys.stderr)
-        if len(skipped_complex) > 5:
-            print(f"    ... 외 {len(skipped_complex)-5}건", file=sys.stderr)
 
     return {
         unv_cd: pd.DataFrame(rows, columns=CANONICAL_COLUMNS)

@@ -59,6 +59,90 @@ def get_university_name(soup: BeautifulSoup) -> str:
     return title.get_text(strip=True).split("|")[0].strip() if title else "대학명_미상"
 
 
+def _table_to_grid(table) -> List[List[str]]:
+    """rowspan/colspan을 펼쳐 2D 텍스트 grid로. 병합 셀은 점유 칸을 같은 값으로 채움."""
+    occupied: dict = {}
+    grid: dict = {}
+    for ri, tr in enumerate(table.find_all("tr")):
+        ci = 0
+        for cell in tr.find_all(["th", "td"]):
+            while (ri, ci) in occupied:
+                ci += 1
+            try:
+                rs = int(cell.get("rowspan", 1) or 1)
+                cs = int(cell.get("colspan", 1) or 1)
+            except ValueError:
+                rs = cs = 1
+            txt = cell.get_text(" ", strip=True)
+            for dr in range(rs):
+                for dc in range(cs):
+                    occupied[(ri + dr, ci + dc)] = True
+                    grid[(ri + dr, ci + dc)] = txt
+            ci += cs
+    if not grid:
+        return []
+    maxr = max(r for r, _ in grid) + 1
+    maxc = max(c for _, c in grid) + 1
+    return [[grid.get((r, c), "") for c in range(maxc)] for r in range(maxr)]
+
+
+def _is_number(s) -> bool:
+    s = str(s).replace(",", "").replace("%", "").strip()
+    if not s:
+        return False
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
+
+def _flatten_table(grid: List[List[str]]):
+    """grid → (전형명, 평면 헤더 리스트, 데이터 행 리스트).
+
+    어디가 입결 표는 다단 헤더(rowspan/colspan)다. 헤더 행을 식별해 세로로
+    결합하고("학생부등급"+"70% cut" → "학생부등급 70% cut"), 전체 colspan을
+    덮는 전형명 행은 별도로 분리한다.
+    """
+    ncol = max(len(r) for r in grid)
+
+    # 헤더 행 수 판정: 첫 컬럼 제외, 숫자 비율이 40% 이상이면 데이터 행
+    n_header = 0
+    for row in grid:
+        vals = row[1:] if len(row) > 1 else row
+        nums = sum(1 for v in vals if _is_number(v))
+        ratio = nums / len(vals) if vals else 0
+        if ratio >= 0.4:
+            break
+        n_header += 1
+    n_header = max(1, min(n_header, len(grid) - 1))
+
+    headers, data = grid[:n_header], grid[n_header:]
+
+    # 전형명 행: col1~끝이 모두 같은 값(colspan 전체) = 전형 제목
+    jeonghyeong = None
+    title_rows = set()
+    for hi, hrow in enumerate(headers):
+        rest = [hrow[c] for c in range(1, ncol) if c < len(hrow) and hrow[c]]
+        if len(rest) >= 2 and len(set(rest)) == 1:
+            jeonghyeong = rest[0]
+            title_rows.add(hi)
+
+    # 평면 헤더: 전형명 행 제외, col별 위→아래 텍스트 결합(연속 중복 제거)
+    flat = []
+    for c in range(ncol):
+        parts = []
+        for hi, hrow in enumerate(headers):
+            if hi in title_rows:
+                continue
+            v = hrow[c] if c < len(hrow) else ""
+            if v and (not parts or parts[-1] != v):
+                parts.append(v)
+        flat.append(" ".join(parts) if parts else f"col{c}")
+
+    return jeonghyeong, flat, data
+
+
 def extract_result_tables(soup: BeautifulSoup) -> List[dict]:
     tab_btns = soup.find_all("button", class_="btnTab")
     ul = tab_btns[0].find_parent("ul")
@@ -83,16 +167,17 @@ def extract_result_tables(soup: BeautifulSoup) -> List[dict]:
 
         tables = []
         for table in inner_soup.find_all("table"):
-            rows = []
-            for tr in table.find_all("tr"):
-                cells = [td.get_text(separator=" ", strip=True) for td in tr.find_all(["td", "th"])]
-                if any(cells):
-                    rows.append(cells)
-            if not rows:
+            grid = _table_to_grid(table)
+            if not grid or len(grid) < 2:
                 continue
-            max_cols = max(len(r) for r in rows)
-            padded = [r + [""] * (max_cols - len(r)) for r in rows]
-            df = pd.DataFrame(padded[1:], columns=padded[0])
+            jeonghyeong, flat_hdr, data = _flatten_table(grid)
+            if not data:
+                continue
+            ncol = len(flat_hdr)
+            data = [r + [""] * (ncol - len(r)) for r in data]  # 길이 보정
+            df = pd.DataFrame(data, columns=flat_hdr)
+            # 전형명을 첫 컬럼으로 (표마다 다른 전형 → 어댑터가 PK로 사용)
+            df.insert(0, "전형", jeonghyeong or tab_name)
             tables.append(df)
 
         if tables:
