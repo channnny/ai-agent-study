@@ -1,0 +1,75 @@
+# cell_mapping.yaml — 표준 스키마 ↔ 엑셀 템플릿(어디가입결_양식.xlsx) 매핑
+# 시트: "수시" 단일.
+# 헤더: R1(그룹 헤더, G1:M1·N1:T1 병합), R2(컬럼명). 데이터는 R3부터 누적.
+
+sheet: "수시"
+header_rows: [1, 2]            # 보존 영역 (절대 수정 금지)
+data_start_row: 3              # 이 행부터 records를 1개씩 입력
+
+merged_ranges_preserve:        # 입력 시 건드리지 않는 병합 영역
+  - "G1:M1"
+  - "N1:T1"
+
+# 한 record(전형 × 모집단위 1조합)가 한 row에 들어감.
+# 좌측 키 = 셀의 컬럼 문자, 우측 = 표준 스키마 JSON path.
+columns:
+  A: university.univName
+  B: records[i].admission_name        # 세부 전형명: "학생부종합(학업우수)" 등
+  C: records[i].recruitment_unit
+  D: records[i].quota
+  E: records[i].competition_ratio
+  F: records[i].fill_rank
+
+  # 대학별환산 (G~M)
+  G: records[i].converted_score.max
+  H: records[i].converted_score.avg
+  I: records[i].converted_score.cut_50
+  J: records[i].converted_score.cut_70
+  K: records[i].converted_score.cut_80
+  L: records[i].converted_score.cut_100
+  M: records[i].converted_score.total
+
+  # 학생부등급 (N~T)
+  N: records[i].grade.max
+  O: records[i].grade.avg
+  P: records[i].grade.cut_50
+  Q: records[i].grade.cut_70
+  R: records[i].grade.cut_80
+  S: records[i].grade.cut_90
+  T: records[i].grade.min
+
+  U: records[i].criteria              # 텍스트 (어디가 발췌)
+  V: records[i].reflected_subjects    # 텍스트 (어디가 발췌)
+
+# 결측 정책: 값이 null이면 셀을 빈 상태로 남김 (write 호출 자체를 건너뜀).
+null_policy: skip_write
+
+# 정렬: row 순서 안정성을 위해 작성 시 (admission_type, recruitment_unit) 사전순 정렬.
+sort_order:
+  - admission_name            # 세부 전형별로 묶기
+  - recruitment_unit
+
+# 타입 강제 (Writer가 입력 직전에 캐스팅)
+type_coercion:
+  D: int
+  E: float
+  G: float
+  H: float
+  I: float
+  J: float
+  K: float
+  L: float
+  M: float
+  N: float
+  O: float
+  P: float
+  Q: float
+  R: float
+  S: float
+  T: float
+  F: passthrough              # 숫자일 수도 문자열일 수도 있음 (예: "10번 이내")
+  A: str
+  B: str
+  C: str
+  U: str
+  V: str

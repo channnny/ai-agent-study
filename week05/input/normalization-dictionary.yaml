@@ -1,0 +1,99 @@
+# 표기 정규화 사전 — week05 평가 프로그램용
+# 출처: 이지현 handoff `docs/references/normalization-dictionary.md` (9섹션)
+# MVP 적용 섹션: 3(NULL), 4(숫자), 6(전형구분), 1(반영교과)
+# 나머지(2/5/7/8/9)는 로드해두고 W06+ 확장
+
+version: 1
+
+# §3. 빈 셀 / NULL 표기 — 모두 None으로
+null_tokens:
+  - "-"
+  - "–"  # en dash
+  - ""
+  - " "
+  - "N/A"
+  - "n/a"
+  - "해당없음"
+  - "미공개"
+
+# §4. 숫자 정규화 패턴 (정규식 기반)
+number_patterns:
+  thousand_separator: ","     # 1,234 → 1234
+  percent_suffix: "%"          # 12.5% → 12.5
+  unit_suffixes:               # 12점, 25명, 3배수 → 12, 25, 3
+    - "점"
+    - "명"
+    - "배수"
+    - "원"
+  approximate_prefix: "약"     # "약 25명" → 25 (앞에 약 붙으면 제거)
+
+# §6. 전형구분 대분류 매핑 (전형명 키워드 → 대분류)
+admission_category:
+  rules:
+    - keywords: [학생부교과, 교과전형, 교과우수]
+      category: 학생부위주(교과)
+    - keywords: [학생부종합, 종합전형, 활동우수, 계열적합, 가천바람개비, 잠재력]
+      category: 학생부위주(종합)
+    - keywords: [논술]
+      category: 논술위주
+    - keywords: [실기, 실적]
+      category: 실기/실적위주
+    - keywords: [수능, 정시]
+      category: 수능위주
+  default: 기타
+
+# §1. 반영교과 표기 정규화
+reflected_subjects:
+  rules:
+    - patterns: [전 과목, 전과목, 전체, 전체 과목]
+      canonical: 전교과
+    # 공백·중간점은 콤마로 변환 (whitespace + punctuation normalize)
+  whitespace_to_comma: true
+  middle_dot_to_comma: "·"  # 국·수·영·사 → 국,수,영,사
+
+# §2. 학생부등급 기준 — W06+
+grade_basis:
+  default: 최종등록자
+  aliases:
+    "최종등록자 기준": 최종등록자
+    "합격자 평균": 합격자
+
+# §5. Boolean 표기 — W06+
+boolean:
+  true_tokens: [있음, 적용, "○", "Y", "O", "TRUE", "true"]
+  false_tokens: [없음, 미적용, "×", "N", "X", "FALSE", "false"]
+  null_tokens: [모집단위별, 일부]
+
+# §7. 면접유형 — W06+
+interview_type:
+  rules:
+    - keywords: [제시문, 논리적 사고]
+      type: 제시문_논리사고
+    - keywords: [인적성, "인·적성"]
+      type: 인적성_면접
+    - keywords: [단계별, 1단계, 2단계]
+      type: 단계별심층_2회
+    - keywords: [실기, 실연, 작품 심사]
+      type: 실기포함
+    - keywords: [서류진위, 서류확인, 서류기반]
+      type: 서류기반_확인
+    - keywords: [없음, 미실시]
+      type: 없음
+
+# §8. 평가표기방식 자동 판정 — W06+ (로직 기반, 사전만으론 부족)
+evaluation_format_hints:
+  ratio_sum_range: [90, 110]   # 비율 합 → 비율백분율
+  grade_token_count: [6, 8]    # A+, B0, C 등 → 등급제
+  score_sum_target: 1000        # 큰 정수 합 → 점수제
+
+# §9. 캠퍼스 분리 패턴 — W06+
+campus_patterns:
+  "글로벌": [(글로벌), 글로벌캠퍼스]
+  "메디컬": [(메디컬), 메디컬캠퍼스]
+  "상주": [(상주), 상주캠퍼스]
+  "양산": [(양산), 양산캠퍼스]
+  "밀양": [(밀양), 밀양캠퍼스]
+  "아미": [(아미), 아미캠퍼스]
+  "세종": ["(세종)"]
+  "미래": ["(미래)"]
+default_campus: 본교

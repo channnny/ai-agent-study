@@ -1,0 +1,29 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Generated outputs (regenerable)
+output/evaluation_report_*.xlsx
+output/logs/*.log
+
+# Yuchan crawler outputs (regenerable from crawl_adiga.py)
+vendor/yuchan/output/
+
+# Leejihyun internal pipeline intermediates (regenerable from run.py)
+vendor/leejihyun/output/raw_html/
+vendor/leejihyun/output/parsed/
+vendor/leejihyun/output/mapped/
+vendor/leejihyun/output/normalized/
+vendor/leejihyun/output/per_university/
+
+# OS
+.DS_Store
+*.swp
+*~
+
+# Sensitive (paranoia: shouldn't be here but just in case)
+*.env
+.env
+**/.env

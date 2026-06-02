@@ -1,0 +1,84 @@
+# mapping_dictionary.yaml — 컬럼명 ↔ 표준 필드 / 전형명 ↔ admission_type
+# v0.4 부트스트랩 시드 (고려대 POC 기반)
+
+# 평면화된 컬럼명 → 표준 record 필드 path
+# 매칭 규칙: substring 매칭(대소문자·공백 무시), 가장 구체적인 매핑 우선
+column_to_field:
+  # 기본 메타
+  "모집단위": recruitment_unit
+  "모집인원": quota
+  "경쟁률": competition_ratio
+  "충원합격순위": fill_rank
+  "충원": fill_rank
+  "평가에반영된교과목": reflected_subjects
+  "반영교과": reflected_subjects
+
+  # 학생부등급 영역 (점 결합된 헤더의 하위 부분이 키)
+  "학생부등급.최고": grade.max
+  "학생부등급.평균": grade.avg
+  "학생부등급.50% cut": grade.cut_50
+  "학생부등급.50%cut": grade.cut_50
+  "학생부등급.70% cut": grade.cut_70
+  "학생부등급.70%cut": grade.cut_70
+  "학생부등급.80% cut": grade.cut_80
+  "학생부등급.80%cut": grade.cut_80
+  "학생부등급.90% cut": grade.cut_90
+  "학생부등급.90%cut": grade.cut_90
+  "학생부등급.최저": grade.min
+  "최종등록자 교과성적 학생부등급.50% cut": grade.cut_50
+  "최종등록자 교과성적 학생부등급.70% cut": grade.cut_70
+  "최종등록자 교과성적 학생부등급.80% cut": grade.cut_80
+  "최종등록자 교과성적 학생부등급.90% cut": grade.cut_90
+  "최종등록자 교과성적 학생부등급.최고": grade.max
+  "최종등록자 교과성적 학생부등급.평균": grade.avg
+  "최종등록자 교과성적 학생부등급.최저": grade.min
+
+  # 대학별환산 영역
+  "대학별환산.최고": converted_score.max
+  "대학별환산.평균": converted_score.avg
+  "대학별환산.50% cut": converted_score.cut_50
+  "대학별환산.50%cut": converted_score.cut_50
+  "대학별환산.70% cut": converted_score.cut_70
+  "대학별환산.70%cut": converted_score.cut_70
+  "대학별환산.80% cut": converted_score.cut_80
+  "대학별환산.80%cut": converted_score.cut_80
+  "대학별환산.100% cut": converted_score.cut_100
+  "대학별환산.100%cut": converted_score.cut_100
+  "대학별환산.총점": converted_score.total
+  "대학별 환산.최고": converted_score.max
+  "대학별 환산.평균": converted_score.avg
+  # 환산점수 cut은 cut_50/cut_70에 (avg에 넣지 않음 — POC 비교에서 0% 오류 원인이었음)
+  "최종등록자 환산점수.50% cut": converted_score.cut_50
+  "최종등록자 환산점수.70% cut": converted_score.cut_70
+  "최종등록자 환산점수.80% cut": converted_score.cut_80
+  "환산점수.총점": converted_score.total
+  "총점(학생부)": converted_score.total
+  "총점(수능)": converted_score.total
+
+# 전형명 substring → admission_type
+admission_type_keywords:
+  # 학생부종합
+  학업우수: 학생부종합
+  계열적합: 학생부종합
+  고른기회: 학생부종합
+  다문화: 학생부종합
+  재직자: 학생부종합
+  사이버국방: 학생부종합
+  종합: 학생부종합
+  # 학생부교과
+  학교추천: 학생부교과
+  교과우수: 학생부교과
+  지역균형: 학생부교과
+  교과: 학생부교과
+
+# 표가 입결 표인지 판정: 헤더에 이 키워드들이 N개 이상 있어야 함
+candidate_keywords:
+  required_min_count: 2
+  keywords:
+    - 모집인원
+    - 경쟁률
+    - 충원합격순위
+    - 학생부등급
+    - 최종등록자
+    - 대학별환산
+    - 환산점수
