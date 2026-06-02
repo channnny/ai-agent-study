@@ -52,18 +52,43 @@ def _is_empty(v: Any) -> bool:
     return str(v).strip() == ""
 
 
+def _decimals(x: float) -> int:
+    """소수 자릿수 (말미 0 제외). 6.245 → 3, 6.25 → 2, 5.0 → 0."""
+    s = repr(float(x))
+    if "e" in s or "E" in s:
+        return 10
+    if "." not in s:
+        return 0
+    return len(s.split(".")[1].rstrip("0"))
+
+
 def _cells_equal(g: Any, p: Any) -> bool:
-    """골든 vs 사람 셀 일치 판정. None은 None과만 일치. float은 ε 허용."""
+    """골든 vs 사람 셀 일치 판정.
+
+    숫자는 '반올림 정합'을 허용 — 한쪽이 더 정밀하면(골든 6.245, 크롤러 6.25)
+    덜 정밀한 쪽 자릿수의 반올림 오차(단위의 절반) 이내일 때 같은 값으로 본다.
+    """
     if g is None and p is None:
         return True
     if g is None or p is None:
         return False
-    if isinstance(g, float) or isinstance(p, float):
+    if isinstance(g, (int, float)) or isinstance(p, (int, float)):
         try:
             gf = float(g); pf = float(p)
             if math.isnan(gf) and math.isnan(pf):
                 return True
-            return abs(gf - pf) < 1e-3
+            if math.isnan(gf) or math.isnan(pf):
+                return False
+            diff = abs(gf - pf)
+            if diff < 1e-3:
+                return True
+            # 반올림 정합: 양쪽 다 소수부가 있고 정밀도가 다를 때만(d≥1).
+            # 정수끼리(모집인원 등)는 엄격 비교 — 2 vs 2.4를 같다고 보면 안 됨.
+            d = min(_decimals(gf), _decimals(pf))
+            if d >= 1:
+                tol = 0.5 * (10 ** -d) + 1e-9
+                return diff <= tol
+            return False
         except (ValueError, TypeError):
             pass
     return str(g).strip() == str(p).strip()
