@@ -57,17 +57,21 @@ def build_summary(results: list[PersonResult]) -> pd.DataFrame:
 
 
 def build_by_university(results: list[PersonResult]) -> pd.DataFrame:
-    """row=대학, col=person별 (PK률, 셀률, status, n_matched, n_golden)."""
+    """row=대학(unvCd), col=person별 (PK률, 셀률, status, n_matched, n_golden)."""
     all_univ = set()
+    univ_names: dict[str, str] = {}
     for r in results:
-        all_univ.update(r.by_university.keys())
+        for unv_cd, m in r.by_university.items():
+            all_univ.add(unv_cd)
+            if m.get("univ_name") and unv_cd not in univ_names:
+                univ_names[unv_cd] = m["univ_name"]
 
     rows = []
-    for univ in sorted(all_univ):
-        row = {"대학": univ}
+    for unv_cd in sorted(all_univ):
+        row = {"unvCd": unv_cd, "대학": univ_names.get(unv_cd, "")}
         for r in results:
             label = PERSON_KOR.get(r.person, r.person)
-            m = r.by_university.get(univ, {})
+            m = r.by_university.get(unv_cd, {})
             row[f"{label}_PK률"]   = _format_rate(m.get("pk_match_rate"))
             row[f"{label}_셀률"]   = _format_rate(m.get("cell_match_rate"))
             row[f"{label}_status"] = m.get("status")

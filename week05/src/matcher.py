@@ -9,7 +9,17 @@ from dataclasses import dataclass, field
 from collections import defaultdict
 from typing import Any
 
-from .config import PK_COLUMNS, DATA_COLUMNS, PK_MATCH_THRESHOLD, CELL_MATCH_THRESHOLD
+from .config import PK_COLUMNS, DATA_COLUMNS, PK_MATCH_THRESHOLD, CELL_MATCH_THRESHOLD, GROUP_LABEL_COL
+
+
+def _univ_label(g_df, p_df) -> str:
+    """표시용 대학명 — 골든 우선, 없으면 사람 출력에서."""
+    for df in (g_df, p_df):
+        if df is not None and not df.empty and GROUP_LABEL_COL in df.columns:
+            vals = df[GROUP_LABEL_COL].dropna()
+            if len(vals):
+                return str(vals.iloc[0])
+    return ""
 
 
 # ───────────────────────────────────────────────────
@@ -81,8 +91,10 @@ def evaluate_person(
     total_cells_compared = total_cells_matched = 0
 
     for univ in sorted(set(golden.keys()) | set(person_data.keys())):
+        # univ = unvCd. 표시용 대학명은 별도로.
         g_df = golden.get(univ)
         p_df = person_data.get(univ)
+        univ_label = _univ_label(g_df, p_df)
 
         # 사람이 시도조차 안 한 대학
         if p_df is None or p_df.empty:
@@ -91,12 +103,14 @@ def evaluate_person(
                 total_golden += len(g_df)
                 for _, grow in g_df.iterrows():
                     result.missing_rows.append({
+                        "unvCd": univ,
                         "대학": grow.get("대학"),
                         "전형": grow.get("전형"),
                         "모집단위": grow.get("모집단위"),
                         "person": person_name,
                     })
             result.by_university[univ] = {
+                "univ_name": univ_label,
                 "status": "missing",
                 "pk_match_rate": None,
                 "cell_match_rate": None,
@@ -111,12 +125,14 @@ def evaluate_person(
             for _, prow in p_df.iterrows():
                 total_extra += 1
                 result.extra_rows.append({
+                    "unvCd": univ,
                     "대학": prow.get("대학"),
                     "전형": prow.get("전형"),
                     "모집단위": prow.get("모집단위"),
                     "person": person_name,
                 })
             result.by_university[univ] = {
+                "univ_name": univ_label,
                 "status": "fail",  # 골든에 없는데 사람만 있는 케이스
                 "pk_match_rate": None,
                 "cell_match_rate": None,
@@ -138,15 +154,15 @@ def evaluate_person(
         n_missing = len(g_set - p_set)
         n_extra = len(p_set - g_set)
 
-        # missing/extra 누적
+        # missing/extra 누적 (pk = (unvCd, 전형, 모집단위))
         for pk in (g_set - p_set):
             result.missing_rows.append({
-                "대학": pk[0], "전형": pk[1], "모집단위": pk[2],
+                "unvCd": pk[0], "대학": univ_label, "전형": pk[1], "모집단위": pk[2],
                 "person": person_name,
             })
         for pk in (p_set - g_set):
             result.extra_rows.append({
-                "대학": pk[0], "전형": pk[1], "모집단위": pk[2],
+                "unvCd": pk[0], "대학": univ_label, "전형": pk[1], "모집단위": pk[2],
                 "person": person_name,
             })
 
@@ -173,7 +189,8 @@ def evaluate_person(
                         univ_cell_matched += 1
                     else:
                         result.mismatched_cells.append({
-                            "대학": pk[0],
+                            "unvCd": pk[0],
+                            "대학": univ_label,
                             "전형": pk[1],
                             "모집단위": pk[2],
                             "컬럼": col,
@@ -202,6 +219,7 @@ def evaluate_person(
             status = "fail"
 
         result.by_university[univ] = {
+            "univ_name": univ_label,
             "status": status,
             "pk_match_rate": pk_rate,
             "cell_match_rate": cell_rate,

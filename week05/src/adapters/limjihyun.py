@@ -14,7 +14,7 @@ import openpyxl
 from pathlib import Path
 from collections import defaultdict
 
-from ..config import PK_COLUMNS, CANONICAL_COLUMNS
+from ..config import PK_COLUMNS, CANONICAL_COLUMNS, GROUP_LABEL_COL
 from ..normalizer import Normalizer
 
 
@@ -66,6 +66,8 @@ def load(outputs_dir: Path, normalizer: Normalizer) -> dict[str, pd.DataFrame]:
         if fp.parent != outputs_dir:
             continue
 
+        unv_cd = fp.stem.strip()  # 파일명 = unvCd
+
         try:
             wb = openpyxl.load_workbook(fp, read_only=True, data_only=True)
         except Exception:
@@ -86,13 +88,16 @@ def load(outputs_dir: Path, normalizer: Normalizer) -> dict[str, pd.DataFrame]:
             if not row or all(c is None for c in row):
                 continue
             rec: dict = {c: None for c in CANONICAL_COLUMNS}
+            rec["unvCd"] = unv_cd
             for i, v in enumerate(row):
                 cn = col_map.get(i)
                 if cn is None:
                     continue
                 if cn == "전형":
                     rec[cn] = normalizer.jeonghyeong(v)
-                elif cn in PK_COLUMNS:
+                elif cn == "대학":
+                    rec[cn] = str(v).strip() if v else None
+                elif cn == "모집단위":
                     rec[cn] = normalizer.pk(v)
                 elif cn == "모집인원":
                     rec[cn] = normalizer.integer(v)
@@ -107,13 +112,12 @@ def load(outputs_dir: Path, normalizer: Normalizer) -> dict[str, pd.DataFrame]:
                 else:
                     rec[cn] = normalizer.cell(v)
 
-            univ = rec.get("대학")
             if not all(rec.get(k) for k in PK_COLUMNS):
                 continue
-            by_univ[univ].append(rec)
+            by_univ[unv_cd].append(rec)
 
     return {
-        univ: pd.DataFrame(rows, columns=CANONICAL_COLUMNS)
-        for univ, rows in by_univ.items()
+        unv_cd: pd.DataFrame(rows, columns=CANONICAL_COLUMNS)
+        for unv_cd, rows in by_univ.items()
         if rows
     }

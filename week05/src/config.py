@@ -21,9 +21,9 @@ UNIVERSITIES_PATH  = INPUT_DIR / "universities_golden.csv"
 NORMALIZATION_PATH = INPUT_DIR / "normalization-dictionary.yaml"
 
 # 사람별 산출물 위치
-YUCHAN_OUTPUT_DIR     = VENDOR_DIR / "yuchan" / "output"   # week03/output 미러
-LEE_OUTPUT_WORKBOOK   = VENDOR_DIR / "leejihyun" / "output" / "adiga_2027.xlsx"
-LIM_OUTPUTS_DIR       = VENDOR_DIR / "limjihyun" / "outputs"
+YUCHAN_OUTPUT_DIR     = VENDOR_DIR / "yuchan" / "output"   # week03/output 미러 ({unvCd}_{대학명}/ 폴더)
+LEE_PER_UNIV_DIR      = VENDOR_DIR / "leejihyun" / "output" / "per_university"  # {unvCd}.xlsx
+LIM_OUTPUTS_DIR       = VENDOR_DIR / "limjihyun" / "outputs"  # {unvCd}.xlsx
 
 # 유찬 크롤러 실제 위치 (week03/output)
 YUCHAN_ACTUAL_OUTPUT  = ROOT / "week03" / "output"
@@ -37,8 +37,14 @@ CELL_MATCH_THRESHOLD = 0.90
 # ──────────────────────────────────────────────────────────────
 # 캐노니컬 스키마 (MVP — 모든 사람 출력 공통 부분만)
 # ──────────────────────────────────────────────────────────────
-# PK: (대학, 전형, 모집단위) 3-튜플 — 이지현 schema_v3.yaml과 일치
-PK_COLUMNS = ["대학", "전형", "모집단위"]
+# PK: (unvCd, 전형, 모집단위) — 대학명 표기 차이(캠퍼스 괄호 등)를 우회하기 위해
+#     대학 식별을 unvCd로 한다. 대학명은 표시용(GROUP_LABEL_COL).
+PK_COLUMNS = ["unvCd", "전형", "모집단위"]
+
+# 대학 그룹핑 키 (어댑터가 반환하는 dict의 key) = unvCd
+GROUP_KEY = "unvCd"
+# 표시용 대학명 컬럼 (리포트에서 사람이 읽기 위함)
+GROUP_LABEL_COL = "대학"
 
 # 데이터 컬럼 (전부 nullable. float은 NaN 허용)
 DATA_COLUMNS = [
@@ -52,7 +58,8 @@ DATA_COLUMNS = [
     "반영교과",            # str (전교과 등)
 ]
 
-CANONICAL_COLUMNS = PK_COLUMNS + DATA_COLUMNS
+# 캐노니컬 컬럼: PK(unvCd·전형·모집단위) + 표시용 대학명 + 데이터
+CANONICAL_COLUMNS = PK_COLUMNS + [GROUP_LABEL_COL] + DATA_COLUMNS
 
 # ──────────────────────────────────────────────────────────────
 # 사람 식별

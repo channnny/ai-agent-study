@@ -103,10 +103,12 @@ def extract_result_tables(soup: BeautifulSoup) -> List[dict]:
 
 # ── 저장 ────────────────────────────────────────────────────────────────────
 
-def save_to_excel(univ_name: str, tab_name: str, tables: list) -> Path:
+def save_to_excel(unv_cd: str, univ_name: str, tab_name: str, tables: list) -> Path:
+    # 폴더명을 unvCd 기반으로 → 캠퍼스 분리 대학(같은 univ_name)의 덮어쓰기 방지 +
+    # 평가 단계에서 골든셋 unvCd와 정확히 매칭 가능.
     safe_tab = re.sub(r"[^\w가-힣]", "", tab_name)
     safe_univ = re.sub(r"[^\w가-힣]", "", univ_name)
-    univ_dir = OUTPUT_DIR / safe_univ
+    univ_dir = OUTPUT_DIR / f"{unv_cd}_{safe_univ}"
     univ_dir.mkdir(exist_ok=True)
     path = univ_dir / f"{safe_tab}_전형결과.xlsx"
 
@@ -141,7 +143,7 @@ def crawl(unv_cd: str, search_syr: str) -> dict:
     # 엑셀 저장
     saved = []
     for item in results:
-        path = save_to_excel(univ_name, item["tab"], item["tables"])
+        path = save_to_excel(unv_cd, univ_name, item["tab"], item["tables"])
         total_rows = sum(len(df) for df in item["tables"])
         saved.append({"tab": item["tab"], "tables": len(item["tables"]), "rows": total_rows, "file": path.name})
 

@@ -25,7 +25,7 @@ import openpyxl
 from pathlib import Path
 from collections import defaultdict
 
-from ..config import PK_COLUMNS, CANONICAL_COLUMNS
+from ..config import PK_COLUMNS, CANONICAL_COLUMNS, GROUP_LABEL_COL
 from ..normalizer import Normalizer
 
 
@@ -59,7 +59,7 @@ def _match_canonical(header: str) -> str | None:
     return None
 
 
-def _parse_simple_table(ws, university: str, normalizer: Normalizer) -> list[dict]:
+def _parse_simple_table(ws, unv_cd: str, university: str, normalizer: Normalizer) -> list[dict]:
     """단순 패턴(가천대 식) 테이블 1개 파싱."""
     rows_iter = ws.iter_rows(values_only=True)
     r1 = next(rows_iter, None)
@@ -97,6 +97,7 @@ def _parse_simple_table(ws, university: str, normalizer: Normalizer) -> list[dic
         if not row or all(c is None for c in row):
             continue
         rec: dict = {c: None for c in CANONICAL_COLUMNS}
+        rec["unvCd"] = unv_cd
         rec["대학"] = university
         rec["전형"] = jeonghyeong
 
@@ -104,7 +105,7 @@ def _parse_simple_table(ws, university: str, normalizer: Normalizer) -> list[dic
             cn = col_to_canonical.get(i)
             if cn is None:
                 continue
-            if cn in PK_COLUMNS:
+            if cn == "모집단위":
                 rec[cn] = normalizer.pk(v)
             elif cn == "모집인원":
                 rec[cn] = normalizer.integer(v)
@@ -126,7 +127,10 @@ def _parse_simple_table(ws, university: str, normalizer: Normalizer) -> list[dic
 
 
 def load(output_root: Path, normalizer: Normalizer) -> dict[str, pd.DataFrame]:
-    """`week03/output/<대학>/*.xlsx` 전체 → {대학명: DataFrame}."""
+    """`week03/output/{unvCd}_{대학명}/*.xlsx` 전체 → {unvCd: DataFrame}.
+
+    폴더명 형식: `{unvCd}_{safe_univ}` (예: `0000063_가천대학교`).
+    """
     by_univ: dict[str, list[dict]] = defaultdict(list)
     skipped_complex = []
 
@@ -136,7 +140,12 @@ def load(output_root: Path, normalizer: Normalizer) -> dict[str, pd.DataFrame]:
     for univ_dir in sorted(output_root.iterdir()):
         if not univ_dir.is_dir():
             continue
-        univ_name = univ_dir.name
+        # 폴더명에서 unvCd 추출: "0000063_가천대학교" → ("0000063", "가천대학교")
+        folder = univ_dir.name
+        if "_" in folder:
+            unv_cd, univ_name = folder.split("_", 1)
+        else:
+            unv_cd, univ_name = folder, folder
 
         for xlsx in sorted(univ_dir.glob("*.xlsx")):
             try:
@@ -147,14 +156,13 @@ def load(output_root: Path, normalizer: Normalizer) -> dict[str, pd.DataFrame]:
             for sn in wb.sheetnames:
                 ws = wb[sn]
                 # 단순 패턴 시도
-                recs = _parse_simple_table(ws, univ_name, normalizer)
+                recs = _parse_simple_table(ws, unv_cd, univ_name, normalizer)
                 if recs:
-                    by_univ[univ_name].extend(recs)
+                    by_univ[unv_cd].extend(recs)
                 else:
-                    skipped_complex.append(f"{univ_name}/{xlsx.name}#{sn}")
+                    skipped_complex.append(f"{folder}/{xlsx.name}#{sn}")
 
     if skipped_complex:
-        # 로그 — 디버깅용. 너무 많으면 처음 5개만.
         import sys
         print(f"  [유찬 어댑터] 스킵된 복잡 테이블: {len(skipped_complex)}", file=sys.stderr)
         for s in skipped_complex[:5]:
@@ -163,7 +171,7 @@ def load(output_root: Path, normalizer: Normalizer) -> dict[str, pd.DataFrame]:
             print(f"    ... 외 {len(skipped_complex)-5}건", file=sys.stderr)
 
     return {
-        univ: pd.DataFrame(rows, columns=CANONICAL_COLUMNS)
-        for univ, rows in by_univ.items()
+        unv_cd: pd.DataFrame(rows, columns=CANONICAL_COLUMNS)
+        for unv_cd, rows in by_univ.items()
         if rows
     }

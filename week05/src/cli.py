@@ -18,7 +18,7 @@ if __name__ == "__main__" and __package__ is None:
 
 from .config import (
     GOLDEN_PATH, NORMALIZATION_PATH, OUTPUT_DIR,
-    YUCHAN_OUTPUT_DIR, LEE_OUTPUT_WORKBOOK, LIM_OUTPUTS_DIR,
+    YUCHAN_OUTPUT_DIR, LEE_PER_UNIV_DIR, LIM_OUTPUTS_DIR,
     PERSONS, PERSON_KOR,
 )
 from .normalizer import Normalizer
@@ -73,8 +73,8 @@ def main():
         print(f"    → {len(data)}개 대학, {sum(len(df) for df in data.values())}행")
         person_data["yuchan"] = data
     if "lee" in persons:
-        print(f"  - 이지현: {LEE_OUTPUT_WORKBOOK}")
-        data = adp_lee.load(LEE_OUTPUT_WORKBOOK, normalizer)
+        print(f"  - 이지현: {LEE_PER_UNIV_DIR}")
+        data = adp_lee.load(LEE_PER_UNIV_DIR, normalizer)
         print(f"    → {len(data)}개 대학, {sum(len(df) for df in data.values())}행")
         person_data["lee"] = data
     if "lim" in persons:
