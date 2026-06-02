@@ -191,6 +191,82 @@ def build_long_rows(results: list[PersonResult], attr: str) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def build_diff_rows(results: list[PersonResult]) -> pd.DataFrame:
+    """누락행 + 잉여행을 한 시트로 통합.
+
+    같은 (사람·대학·모집단위)로 정렬 → '전형명만 다른' 누락↔잉여 쌍이 인접해
+    PK 매칭 실패 원인(전형명 분류 차이)이 한눈에 드러난다.
+    """
+    rows = []
+    for r in results:
+        person = PERSON_KOR.get(r.person, r.person)
+        for m in r.missing_rows:
+            rows.append({
+                "구분": "🔴 누락 (골든O·크롤러X)",
+                "사람": person, "unvCd": m.get("unvCd"), "대학": m.get("대학"),
+                "전형": m.get("전형"), "모집단위": m.get("모집단위"),
+            })
+        for e in r.extra_rows:
+            rows.append({
+                "구분": "🔵 잉여 (크롤러O·골든X)",
+                "사람": person, "unvCd": e.get("unvCd"), "대학": e.get("대학"),
+                "전형": e.get("전형"), "모집단위": e.get("모집단위"),
+            })
+    if not rows:
+        return pd.DataFrame()
+    df = pd.DataFrame(rows, columns=["사람", "대학", "모집단위", "전형", "구분", "unvCd"])
+    # 같은 사람·대학·모집단위 안에서 누락/잉여가 붙도록 정렬
+    df = df.sort_values(["사람", "대학", "모집단위", "전형"],
+                        key=lambda s: s.fillna("")).reset_index(drop=True)
+    return df
+
+
+def _verdict(bigo: str) -> str:
+    """불일치 '비고' 텍스트 → 직관적 판정 이모지."""
+    b = str(bigo or "")
+    if "콤마" in b:
+        return "🟡 거의같음 (콤마 포맷)"
+    if "근접" in b:
+        return "🟡 거의같음 (반올림)"
+    if "null" in b:
+        return "⬜ 한쪽만 값있음"
+    return "🔴 값 다름"
+
+
+_VERDICT_ORDER = {"🔴": 0, "⬜": 1, "🟡": 2}
+
+
+def build_mismatch(results: list[PersonResult]) -> pd.DataFrame:
+    """불일치셀 — 판정 이모지 + 골든↔크롤러 값 인접 + 심각한 것 위로 정렬."""
+    rows = []
+    for r in results:
+        person = PERSON_KOR.get(r.person, r.person)
+        for c in r.mismatched_cells:
+            gv = c.get("golden_value")
+            pv = c.get("person_value")
+            # 한쪽만 값이 있으면 무조건 ⬜ (비고 텍스트보다 우선)
+            if (gv is None) != (pv is None):
+                verdict = "⬜ 한쪽만 값있음"
+            else:
+                verdict = _verdict(c.get("비고"))
+            rows.append({
+                "판정": verdict,
+                "사람": person, "대학": c.get("대학"),
+                "전형": c.get("전형"), "모집단위": c.get("모집단위"),
+                "항목": c.get("컬럼"),
+                "골든값": "(빈칸)" if gv is None else gv,
+                "크롤러값": "(빈칸)" if pv is None else pv,
+            })
+    if not rows:
+        return pd.DataFrame()
+    df = pd.DataFrame(rows, columns=["판정", "사람", "대학", "전형", "모집단위", "항목", "골든값", "크롤러값"])
+    df = df.sort_values(
+        ["사람", "판정", "대학", "항목"],
+        key=lambda s: s.map(lambda v: _VERDICT_ORDER.get(str(v)[:1], 9)) if s.name == "판정" else s.fillna(""),
+    ).reset_index(drop=True)
+    return df
+
+
 def build_uncovered(results: list[PersonResult]) -> pd.DataFrame:
     """커버리지 100%가 안 되는 이유 — 데이터를 못 낸 골든 대학 명단.
 
@@ -248,43 +324,29 @@ def build_glossary() -> pd.DataFrame:
     rows = [
         ("■ 이 리포트는?", "3명(유찬·이지현·임지현)의 어디가 크롤러 출력을 작년 골든셋(2025_수시_입시결과_통합본)과 비교해 정확도를 측정한 결과입니다."),
         ("", ""),
-        ("■ 핵심 지표 3개 (깔때기 순서)", ""),
-        ("① 커버리지 (coverage_pct)", "골든셋 173개 대학 중 그 사람이 '데이터를 낸' 대학 비율. = 데이터 낸 대학 ÷ 173. '애초에 평가 테이블에 올라올 자격'."),
-        ("② PK 매칭률 (pk_match_rate)", "PK = (대학코드, 전형, 모집단위) 3개 조합. 골든과 크롤러가 '둘 다 가진 PK 수' ÷ '골든 전체 PK 수'. = 빠뜨리지 않고 같은 행을 찾았는가? (양의 정확도)"),
-        ("③ 셀 일치율 (cell_match_rate)", "PK가 매칭된 행에 한해, 각 데이터 칸(모집인원·경쟁률·학생부등급 등)의 값이 골든과 같은 비율. = 찾은 행의 숫자가 정확한가? (질의 정확도)"),
-        ("", "→ 셋 다 높아야 진짜 정확. 하나만 높으면 함정 (예: 커버리지 5%인데 셀 48%면 일부 대학만의 얘기)."),
+        ("■ 신호등·막대 읽는 법", "각 표에 공통으로 쓰입니다."),
+        ("🟢 / 🟡 / 🔴 / ⬜", "🟢=목표 달성 / 🟡=절반 이상(아쉬움) / 🔴=목표 미달 / ⬜=데이터 없음(미수집)."),
+        ("████░░░░░░", "비율 막대. 채워진 칸이 많을수록 높음 (한 칸 = 10%)."),
         ("", ""),
-        ("■ 보조 지표", ""),
-        ("n_matched / n_golden_total", "매칭된 행 수 / 골든셋 전체 행 수."),
-        ("n_missing", "골든엔 있는데 크롤러가 못 찾은 행 수 (→ missing_rows 시트)."),
-        ("n_extra", "크롤러엔 있는데 골든엔 없는 행 수 (→ extra_rows 시트)."),
-        ("pk_dod_pass / cell_dod_pass", "DoD(목표) 통과 여부. 기준: PK ≥ 85%, 셀 ≥ 90%. ✓=통과, ✗=미달."),
+        ("■ 핵심 지표 3개 (깔때기 순서)", "셋 다 높아야 진짜 정확. 하나만 높으면 함정."),
+        ("① 커버리지", "골든 173개 대학 중 '데이터를 낸' 대학 비율. = 애초에 평가 테이블에 올라올 자격. (신호등: 80%↑🟢 / 40%↑🟡)"),
+        ("② PK 매칭률", "PK=(대학코드,전형,모집단위) 3개 조합. '둘 다 가진 PK 수 ÷ 골든 전체 PK 수'. = 빠뜨리지 않고 같은 행을 찾았는가?(양). 목표 ≥85%."),
+        ("③ 셀 일치율", "PK가 매칭된 행에 한해, 각 데이터 칸(모집인원·경쟁률·등급 등)의 값이 골든과 같은 비율. = 찾은 행의 값이 정확한가?(질). 목표 ≥90%."),
+        ("🏁 종합 판정 (DoD)", "PK ≥85% '그리고' 셀 ≥90% 면 ✅ 통과, 아니면 ❌ 미달."),
         ("", ""),
-        ("■ by_university 시트의 status", ""),
-        ("pass", "PK ≥ 85% 이고 셀 ≥ 90% (목표 달성)."),
-        ("fail", "데이터는 냈지만 기준 미달."),
-        ("missing", "그 대학을 아예 못 냄 (어디가에 데이터 없거나 크롤러가 0행)."),
-        ("", ""),
-        ("■ mismatched_cells 시트의 '비고'", ""),
-        ("콤마 차이", "'1,234' vs '1234' 같은 포맷 차이 — 사실상 같은 값."),
-        ("근접: 차이 0.0x", "반올림 수준 차이 — 거의 맞음."),
-        ("사람=null, 골든=값있음", "크롤러가 그 칸을 못 긁음 (진짜 누락)."),
-        ("차이: +N", "골든과 명확히 다른 값."),
-        ("", ""),
-        ("■ 커버리지가 100%가 안 되는 이유", "→ 대학별 상세 명단은 '미수집대학' 시트 참조"),
+        ("■ 커버리지가 100%가 안 되는 이유", "→ 대학별 상세 명단은 '미수집대학' 시트."),
         ("(1) 어디가 미게시", "강릉원주대·가톨릭대(성의/성신교정)·대구예술대 등은 2025 전형 결과가 어디가에 아직 안 올라옴 → 유찬·이지현 모두 공통으로 못 냄 (크롤러 문제 아님, 소스 문제)."),
-        ("(2) 유찬 복잡 테이블 스킵", "경북대·안양대·중부대·춘천교대 등은 '단과대학+모집단위' 다단 헤더 구조라 유찬 어댑터가 아직 파싱 못 함 (W06 보강 예정)."),
+        ("(2) 유찬 복잡 테이블 스킵", "경북대·안양대·중부대·춘천교대 등은 '단과대학+모집단위' 다단 헤더라 유찬 어댑터가 아직 파싱 못 함 (W06 보강 예정)."),
         ("", ""),
-        ("■ 남은 PK 격차(~43%)의 주원인", "크롤링 실패가 아니라 전형명 분류 차이. 예: 골든 '농어촌학생' vs 크롤러 '농어촌', 골든 '특성화고교졸업자' vs 크롤러 '특성화고교'. → 같은 전형인데 이름이 달라 매칭 실패. W06에서 전형 분류 사전 합의로 해소."),
+        ("■ 남은 PK 격차(~43%)의 주원인", "크롤링 실패가 아니라 전형명 분류 차이. 예: 골든 '해람인재' vs 크롤러 '학생부종합(해람인재)' — 같은 전형인데 이름이 달라 한쪽은 누락·한쪽은 잉여로 잡힘. '누락·잉여' 시트에서 인접 쌍으로 확인 가능. W06에서 전형 분류 사전 합의로 해소."),
         ("", ""),
         ("■ 탭(시트)별 보는 법", ""),
-        ("종합", "3명 × 11개 지표 한눈에. 핵심은 커버리지·PK매칭률·셀일치율. ✓/✗는 DoD(목표) 통과 여부."),
-        ("대학별", "173개 대학별로 누가 얼마나 정확한지. 초록=목표달성, 빨강=미달, 회색=미수집."),
-        ("항목별", "8개 데이터 항목(모집인원·경쟁률·등급 등)별 일치율. 어떤 항목이 약한지 → 우선 개선 대상."),
-        ("누락행", "골든엔 있는데 크롤러가 못 찾은 행. 전형명을 보면 분류 차이가 드러남."),
-        ("잉여행", "크롤러엔 있는데 골든엔 없는 행. 잘못 긁었거나 전형 표기 차이로 매칭 실패."),
-        ("불일치셀", "PK는 맞았는데 값이 틀린 칸. '비고'가 콤마차이/근접이면 사실상 맞은 것."),
-        ("미수집대학", "커버리지가 100%가 안 되는 대학 명단 + 추정 원인."),
+        ("종합 (대시보드)", "3명을 신호등+막대로 한눈에. 위 3줄(📊)이 핵심 지표, 아래는 상세 행 수, 맨 끝 🏁이 최종 판정."),
+        ("대학별", "대학마다 사람별 1칸 = '신호등 PK% · 셀% (맞은행/골든행)'. 배경색=신호등. 데이터 많은 대학이 위, 미수집은 아래. 같은 대학명 2줄=캠퍼스 분리(unvCd 다름)."),
+        ("항목별", "8개 데이터 항목(모집인원·경쟁률·등급 등)별 일치율. 낮은 항목 = 그 항목 파싱 우선 개선."),
+        ("미수집대학", "커버리지 미달 대학 명단 + 추정 원인(①소스 미게시 / ②③크롤러 미수집)."),
+        ("누락·잉여", "🔴누락(골든O·크롤러X) + 🔵잉여(크롤러O·골든X)를 한 시트에. 같은 대학·모집단위로 정렬돼 전형명만 다른 쌍이 인접 → PK 격차 원인이 보임."),
+        ("불일치셀", "PK는 맞았는데 값이 다른 칸. 🔴값다름(진짜 오류, 위쪽) / 🟡거의같음(콤마·반올림=사실상 정답) / ⬜한쪽만 값있음. 골든값↔크롤러값 나란히."),
     ]
     return pd.DataFrame(rows, columns=["항목", "설명"])
 
@@ -372,6 +434,40 @@ def _colorize_univ(ws, df: pd.DataFrame):
                 ws.cell(r, j).fill = PatternFill("solid", fgColor="FFEB9C")  # 연노랑
 
 
+def _colorize_diff(ws, df: pd.DataFrame):
+    """누락·잉여 시트의 '구분' 컬럼 색칠."""
+    if df.empty:
+        return
+    gj = [j for j, c in enumerate(df.columns, start=1) if c == "구분"]
+    if not gj:
+        return
+    j = gj[0]
+    for r in range(3, ws.max_row + 1):
+        v = str(ws.cell(r, j).value or "")
+        if "누락" in v:
+            ws.cell(r, j).fill = _FAIL_FILL
+        elif "잉여" in v:
+            ws.cell(r, j).fill = PatternFill("solid", fgColor="DDEBF7")  # 연파랑
+
+
+def _colorize_verdict(ws, df: pd.DataFrame):
+    """불일치셀 시트의 '판정' 컬럼 색칠."""
+    if df.empty:
+        return
+    pj = [j for j, c in enumerate(df.columns, start=1) if c == "판정"]
+    if not pj:
+        return
+    j = pj[0]
+    for r in range(3, ws.max_row + 1):
+        v = str(ws.cell(r, j).value or "")
+        if v.startswith("🔴"):
+            ws.cell(r, j).fill = _FAIL_FILL
+        elif v.startswith("🟡"):
+            ws.cell(r, j).fill = PatternFill("solid", fgColor="FFEB9C")
+        elif v.startswith("⬜"):
+            ws.cell(r, j).fill = _MISS_FILL
+
+
 def _highlight_dashboard(ws):
     """종합 시트의 핵심 3지표(📊) 행을 연노랑 배경으로 강조."""
     hl = PatternFill("solid", fgColor="FFF2CC")
@@ -412,9 +508,8 @@ def write_report(results: list[PersonResult], output_path: Path) -> None:
     by_univ    = build_by_university(results)
     by_col     = build_by_column(results)
     uncovered  = build_uncovered(results)
-    missing    = build_long_rows(results, "missing_rows")
-    extra      = build_long_rows(results, "extra_rows")
-    mismatched = build_long_rows(results, "mismatched_cells")
+    diff       = build_diff_rows(results)
+    mismatched = build_mismatch(results)
 
     with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
         # 용어설명 (자체가 설명이라 별도 desc 없이)
@@ -431,12 +526,12 @@ def write_report(results: list[PersonResult], output_path: Path) -> None:
             "8개 데이터 항목별 일치율(매칭된 행 한정). 숫자가 낮은 항목 = 그 항목 파싱이 부정확 → 우선 개선 대상. 예: '학생부등급_50컷'이 낮으면 등급 파싱 로직 점검.")
         _write_styled(writer, uncovered, "미수집대학",
             "커버리지가 100%가 안 되는 대학 명단. ① = 어디가에 2025 결과 미게시(소스 문제, 크롤러 무관) / ② ③ = 해당 크롤러만 미수집.")
-        _write_styled(writer, missing, "누락행",
-            "골든엔 있는데 크롤러가 못 찾은 행. 전형명을 보면 분류 차이(예: '농어촌학생' vs '농어촌')가 드러남 → PK 격차의 주원인.")
-        _write_styled(writer, extra, "잉여행",
-            "크롤러엔 있는데 골든엔 없는 행. 잘못 긁었거나 전형 표기가 달라 매칭이 안 된 케이스.")
+        _write_styled(writer, diff, "누락·잉여",
+            "🔴누락=골든엔 있는데 크롤러가 못 찾음 / 🔵잉여=크롤러엔 있는데 골든엔 없음. 같은 대학·모집단위로 정렬됨 → 전형명만 다른 누락↔잉여 쌍(예: '해람인재'↔'학생부종합(해람인재)')이 인접 = PK 격차의 주원인. [데이터>필터]로 사람·대학 좁혀 보세요.")
+        _colorize_diff(writer.sheets["누락·잉여"], diff)
         _write_styled(writer, mismatched, "불일치셀",
-            "PK는 맞았는데 값이 틀린 칸. '비고'가 '콤마 차이'·'근접'이면 사실상 맞은 것 → 실제 정확도는 셀일치율보다 높을 수 있음.")
+            "PK는 맞았는데 값이 다른 칸. 판정: 🔴값다름(진짜 오류) / 🟡거의같음(콤마·반올림, 사실상 정답) / ⬜한쪽만 값있음. 🔴부터 정렬 → 위쪽이 실제 고칠 것. 🟡이 많으면 실제 정확도는 셀일치율보다 높음.")
+        _colorize_verdict(writer.sheets["불일치셀"], mismatched)
 
     print(f"\n✓ 평가 리포트: {output_path}")
-    print(f"  시트 8개: 용어설명 · 종합 · 대학별 · 항목별 · 미수집대학 · 누락행 · 잉여행 · 불일치셀")
+    print(f"  시트 7개: 용어설명 · 종합 · 대학별 · 항목별 · 미수집대학 · 누락·잉여 · 불일치셀")
