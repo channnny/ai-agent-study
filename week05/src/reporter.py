@@ -46,36 +46,126 @@ def _format_rate(v):
     return v
 
 
+def _bar(pct, width=10):
+    """유니코드 막대. pct는 0~100."""
+    if pct is None:
+        return ""
+    f = max(0, min(width, int(round(pct / 100 * width))))
+    return "█" * f + "░" * (width - f)
+
+
+def _light(pct, good, mid):
+    """신호등: good 이상 🟢 / mid 이상 🟡 / 미만 🔴 / None ⬜."""
+    if pct is None:
+        return "⬜"
+    return "🟢" if pct >= good else ("🟡" if pct >= mid else "🔴")
+
+
+def _dash_cell(pct, good, mid):
+    """대시보드 셀: '🟢 89.6% ████████░░'."""
+    if pct is None:
+        return "—"
+    return f"{_light(pct, good, mid)} {pct:.1f}%  {_bar(pct)}"
+
+
 def build_summary(results: list[PersonResult]) -> pd.DataFrame:
+    """대시보드형 종합 시트.
+
+    상단 = 핵심 3지표(커버리지·PK·셀)를 신호등+막대+기준선으로.
+    하단 = 상세 행 수 지표.
+    """
+    def col(r):
+        return PERSON_KOR.get(r.person, r.person)
+
     rows = []
-    for key, label in SUMMARY_METRICS_ORDER:
-        row = {"metric": label}
+
+    # ── 핵심 3지표 (신호등 + 막대) ──
+    rows.append({"지표": "📊 커버리지 (몇 대학 시도)", **{
+        col(r): _dash_cell(r.summary.get("coverage_pct"), 80, 40) for r in results}, "목표": "높을수록"})
+    rows.append({"지표": "📊 PK 매칭률 (같은 행 찾음)", **{
+        col(r): _dash_cell((r.summary.get("pk_match_rate") or 0) * 100, 85, 40) for r in results}, "목표": "≥ 85%"})
+    rows.append({"지표": "📊 셀 일치율 (값이 정확)", **{
+        col(r): _dash_cell((r.summary.get("cell_match_rate") or 0) * 100, 90, 50) for r in results}, "목표": "≥ 90%"})
+
+    # ── 구분 ──
+    rows.append({"지표": "", **{col(r): "" for r in results}, "목표": ""})
+    rows.append({"지표": "─ 상세 (행 수) ─", **{col(r): "" for r in results}, "목표": ""})
+
+    detail = [
+        ("matched 행 수 (정확히 찾음)", "n_matched"),
+        ("missing 행 수 (못 찾음→누락행)", "n_missing"),
+        ("extra 행 수 (잘못 긁음→잉여행)", "n_extra"),
+        ("골든 전체 행 수", "n_golden_total"),
+        ("미수집 대학 수 (→미수집대학)", "n_missing_univ"),
+    ]
+    for label, key in detail:
+        row = {"지표": label}
         for r in results:
-            row[PERSON_KOR.get(r.person, r.person)] = _format_rate(r.summary.get(key))
+            v = r.summary.get(key)
+            row[col(r)] = f"{v:,}" if isinstance(v, (int, float)) else v
+        row["목표"] = ""
         rows.append(row)
-    return pd.DataFrame(rows)
+
+    # ── 종합 판정 ──
+    rows.append({"지표": "", **{col(r): "" for r in results}, "목표": ""})
+    judge = {"지표": "🏁 종합 판정 (DoD)"}
+    for r in results:
+        pk_ok = r.summary.get("pk_dod_pass")
+        cell_ok = r.summary.get("cell_dod_pass")
+        judge[col(r)] = "✅ 통과" if (pk_ok and cell_ok) else "❌ 미달"
+    judge["목표"] = "PK85·셀90"
+    rows.append(judge)
+
+    return pd.DataFrame(rows, columns=["지표"] + [col(r) for r in results] + ["목표"])
+
+
+def _univ_cell(m: dict) -> str:
+    """대학별 시트 한 셀: 신호등 + PK·셀 요약, 또는 미수집."""
+    if not m:
+        return "⬜ 미수집"
+    st = m.get("status")
+    if st == "missing":
+        return "⬜ 미수집"
+    pk = m.get("pk_match_rate")
+    cell = m.get("cell_match_rate")
+    if pk is None and m.get("n_golden", 0) == 0:
+        return "▫ 골든에 없음"
+    light = _light((pk or 0) * 100, 85, 40)
+    pk_s = f"{pk*100:.0f}%" if pk is not None else "0%"
+    cell_s = f"{cell*100:.0f}%" if cell is not None else "—"
+    matched = f"{m.get('n_matched', 0)}/{m.get('n_golden', 0)}"
+    return f"{light} PK {pk_s} · 셀 {cell_s}  ({matched})"
 
 
 def build_by_university(results: list[PersonResult]) -> pd.DataFrame:
-    """row=대학(unvCd), col=person별 (PK률, 셀률, status, n_matched, n_golden)."""
+    """row=대학(unvCd), col=사람별 1컬럼(신호등+PK·셀 요약).
+
+    정렬: 골든 행수 많은 대학 먼저(데이터 풍부) → 전부 미수집 대학은 아래로.
+    """
     all_univ = set()
     univ_names: dict[str, str] = {}
+    golden_rows: dict[str, int] = {}
     for r in results:
         for unv_cd, m in r.by_university.items():
             all_univ.add(unv_cd)
-            if m.get("univ_name") and unv_cd not in univ_names:
+            if m.get("univ_name"):
                 univ_names[unv_cd] = m["univ_name"]
+            golden_rows[unv_cd] = max(golden_rows.get(unv_cd, 0), m.get("n_golden", 0) or 0)
+
+    # 정렬 키: 데이터 있는 대학(누구라도 missing 아님) 먼저, 그 안에서 골든행수 desc
+    def sort_key(u):
+        any_data = any(
+            r.by_university.get(u, {}).get("status") not in (None, "missing")
+            for r in results
+        )
+        return (0 if any_data else 1, -golden_rows.get(u, 0), univ_names.get(u, ""))
 
     rows = []
-    for unv_cd in sorted(all_univ):
+    for unv_cd in sorted(all_univ, key=sort_key):
         row = {"unvCd": unv_cd, "대학": univ_names.get(unv_cd, "")}
         for r in results:
             label = PERSON_KOR.get(r.person, r.person)
-            m = r.by_university.get(unv_cd, {})
-            row[f"{label}_PK률"]   = _format_rate(m.get("pk_match_rate"))
-            row[f"{label}_셀률"]   = _format_rate(m.get("cell_match_rate"))
-            row[f"{label}_status"] = m.get("status")
-            row[f"{label}_matched/golden"] = f"{m.get('n_matched', 0)}/{m.get('n_golden', 0)}"
+            row[label] = _univ_cell(r.by_university.get(unv_cd, {}))
         rows.append(row)
     return pd.DataFrame(rows)
 
@@ -265,18 +355,32 @@ def _write_styled(writer, df: pd.DataFrame, sheet: str, desc: str):
     ws.freeze_panes = "A3"  # 설명+헤더 고정
 
 
-def _colorize_status(ws, df: pd.DataFrame):
-    """대학별 시트의 *_status 컬럼을 pass/fail/missing 색으로."""
-    status_cols = [j for j, c in enumerate(df.columns, start=1) if str(c).endswith("status")]
+def _colorize_univ(ws, df: pd.DataFrame):
+    """대학별 시트 사람 컬럼(신호등 셀)을 내용 따라 색칠."""
+    person_cols = [j for j, c in enumerate(df.columns, start=1)
+                   if str(c) not in ("unvCd", "대학")]
     for r in range(3, ws.max_row + 1):
-        for j in status_cols:
-            v = ws.cell(r, j).value
-            if v == "pass":
-                ws.cell(r, j).fill = _PASS_FILL
-            elif v == "fail":
-                ws.cell(r, j).fill = _FAIL_FILL
-            elif v == "missing":
+        for j in person_cols:
+            v = str(ws.cell(r, j).value or "")
+            if "⬜" in v:
                 ws.cell(r, j).fill = _MISS_FILL
+            elif "🟢" in v:
+                ws.cell(r, j).fill = _PASS_FILL
+            elif "🔴" in v:
+                ws.cell(r, j).fill = _FAIL_FILL
+            elif "🟡" in v:
+                ws.cell(r, j).fill = PatternFill("solid", fgColor="FFEB9C")  # 연노랑
+
+
+def _highlight_dashboard(ws):
+    """종합 시트의 핵심 3지표(📊) 행을 연노랑 배경으로 강조."""
+    hl = PatternFill("solid", fgColor="FFF2CC")
+    for r in range(3, ws.max_row + 1):
+        label = str(ws.cell(r, 1).value or "")
+        if label.startswith("📊") or label.startswith("🏁"):
+            for j in range(1, ws.max_column + 1):
+                if ws.cell(r, j).fill.fgColor.rgb in ("00000000", None):
+                    ws.cell(r, j).fill = hl
 
 
 def _style_glossary(ws, df: pd.DataFrame):
@@ -318,12 +422,13 @@ def write_report(results: list[PersonResult], output_path: Path) -> None:
         _style_glossary(writer.sheets["용어설명"], glossary)
 
         _write_styled(writer, summary, "종합",
-            "3명 × 11개 지표 한눈에. 핵심 3개 = 커버리지(몇 대학 시도) → PK매칭률(같은 행 찾음) → 셀일치율(값 정확). ✓/✗ = 목표(DoD) 통과 여부.")
+            "🟢=목표달성 🟡=절반이상 🔴=미달 ⬜=없음.  깔때기: 커버리지(173곳 중 몇 곳 시도)→PK매칭률(같은 행 찾음)→셀일치율(값 정확).  현재 유찬·이지현은 커버리지 ~90%이나 PK·셀은 목표(85/90%) 미달 — 전형명 분류 차이가 주원인(누락행 시트 참조). 임지현은 8개 표본만.")
+        _highlight_dashboard(writer.sheets["종합"])
         _write_styled(writer, by_univ, "대학별",
-            "173개 대학별 정확도. status 색: 초록=목표달성(pass) / 빨강=미달(fail) / 회색=미수집(missing). PK률·셀률은 각자 컬럼.")
-        _colorize_status(writer.sheets["대학별"], by_univ)
+            "대학별 정확도 한 셀 요약: 신호등 + 'PK %·셀 %·(맞은행/골든행)'. 🟢=PK85%↑ 🟡=40%↑ 🔴=40%미만 ⬜=미수집. 데이터 풍부한 대학이 위, 미수집 대학이 아래. 같은 대학명이 2줄이면 캠퍼스 분리(unvCd 다름).")
+        _colorize_univ(writer.sheets["대학별"], by_univ)
         _write_styled(writer, by_col, "항목별",
-            "8개 데이터 항목별 일치율(매칭된 행 한정). 낮은 항목 = 그 항목 파싱을 우선 개선해야 함.")
+            "8개 데이터 항목별 일치율(매칭된 행 한정). 숫자가 낮은 항목 = 그 항목 파싱이 부정확 → 우선 개선 대상. 예: '학생부등급_50컷'이 낮으면 등급 파싱 로직 점검.")
         _write_styled(writer, uncovered, "미수집대학",
             "커버리지가 100%가 안 되는 대학 명단. ① = 어디가에 2025 결과 미게시(소스 문제, 크롤러 무관) / ② ③ = 해당 크롤러만 미수집.")
         _write_styled(writer, missing, "누락행",
