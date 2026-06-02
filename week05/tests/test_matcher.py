@@ -83,13 +83,13 @@ class TestEvaluatePersonMini:
 
     def test_cell_match_rate(self, golden_mini, person_mini):
         r = evaluate_person(golden_mini, person_mini, "tester")
-        # matched 3개 × DATA_COLUMNS(8개) = 24 셀 비교 대상
-        # 수학과: 모집인원 ✓, 경쟁률 ✓, 나머지 6개 None==None ✓ → 8/8
-        # 물리학과: 모집인원 ✓, 경쟁률 ✗, 나머지 6개 None==None ✓ → 7/8
-        # 화학과: 모집인원 ✗, 경쟁률 ✓, 나머지 6개 None==None ✓ → 7/8
-        # 총 22/24 = 91.6%
+        # 양쪽 다 값 있는 셀만 비교 (둘 다 None인 6개 컬럼은 제외):
+        # 수학과: 모집인원 ✓, 경쟁률 ✓ → 2/2
+        # 물리학과: 모집인원 ✓, 경쟁률 ✗ → 1/2
+        # 화학과: 모집인원 ✗, 경쟁률 ✓ → 1/2
+        # 총 4/6 = 66.7%
         rate = r.summary["cell_match_rate"]
-        assert 0.91 < rate < 0.92
+        assert 0.66 < rate < 0.67
 
     def test_by_university(self, golden_mini, person_mini):
         r = evaluate_person(golden_mini, person_mini, "tester")

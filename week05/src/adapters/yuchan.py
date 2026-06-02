@@ -145,6 +145,9 @@ def load(output_root: Path, normalizer: Normalizer) -> dict[str, pd.DataFrame]:
             unv_cd, univ_name = folder, folder
 
         for xlsx in sorted(univ_dir.glob("*.xlsx")):
+            # 골든셋은 수시(susi)만 → 정시(수능위주) 탭은 비교 대상 아님, 제외
+            if "수능위주" in xlsx.name:
+                continue
             try:
                 wb = openpyxl.load_workbook(xlsx, read_only=True, data_only=True)
             except Exception:

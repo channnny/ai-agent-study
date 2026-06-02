@@ -34,11 +34,24 @@ class PersonResult:
     missing_rows: list = field(default_factory=list)   # [(대학, 전형, 모집단위)]
     extra_rows: list = field(default_factory=list)
     mismatched_cells: list = field(default_factory=list)  # [(대학, 전형, 모집단위, 컬럼, golden, person, 비고)]
+    cell_fill_gaps: list = field(default_factory=list)     # 한쪽만 값있음(충진 차이) — 셀 일치율 분모 제외
 
 
 # ───────────────────────────────────────────────────
 # 셀 비교
 # ───────────────────────────────────────────────────
+def _is_empty(v: Any) -> bool:
+    """셀이 비었는가 (None / NaN / 빈 문자열)."""
+    if v is None:
+        return True
+    if isinstance(v, float):
+        try:
+            return math.isnan(v)
+        except (ValueError, TypeError):
+            return False
+    return str(v).strip() == ""
+
+
 def _cells_equal(g: Any, p: Any) -> bool:
     """골든 vs 사람 셀 일치 판정. None은 None과만 일치. float은 ε 허용."""
     if g is None and p is None:
@@ -181,6 +194,23 @@ def evaluate_person(
                 for col in DATA_COLUMNS:
                     gv = g_row.get(col)
                     pv = p_row.get(col)
+                    g_empty = _is_empty(gv)
+                    p_empty = _is_empty(pv)
+                    # 둘 다 없음 → 비교 무의미, 건너뜀
+                    if g_empty and p_empty:
+                        continue
+                    # 한쪽만 없음 → "긁은 값의 정확도"가 아닌 충진 차이.
+                    # 셀 일치율 분모에서 제외하고 별도 카운트(충진 누락).
+                    if g_empty != p_empty:
+                        result.cell_fill_gaps.append({
+                            "unvCd": pk[0], "대학": univ_label,
+                            "전형": pk[1], "모집단위": pk[2], "컬럼": col,
+                            "golden_value": gv, "person_value": pv,
+                            "person": person_name,
+                            "비고": "크롤러 미수집" if p_empty else "골든에 없음",
+                        })
+                        continue
+                    # 양쪽 다 값 있음 → 실제 일치/불일치 판정
                     matched = _cells_equal(gv, pv)
                     col_match_counts[col][1] += 1
                     univ_cell_total += 1
@@ -232,6 +262,7 @@ def evaluate_person(
     for col, (mch, tot) in col_match_counts.items():
         result.by_column[col] = (mch / tot) if tot else None
 
+    # by_column 메트릭
     # summary
     pk_match_rate = (total_matched / total_golden) if total_golden else 0
     cell_match_rate = (total_cells_matched / total_cells_compared) if total_cells_compared else 0
@@ -239,9 +270,17 @@ def evaluate_person(
     n_missing_univ = sum(1 for u in result.by_university.values() if u["status"] == "missing")
     coverage = 1 - (n_missing_univ / len(result.by_university)) if result.by_university else 0
 
+    # 셀 충진율: 매칭 행의 (비교된 셀 + 한쪽만 값) 중 양쪽 다 값 있는 비율
+    n_fill_gap = len(result.cell_fill_gaps)
+    cell_denom = total_cells_compared + n_fill_gap
+    cell_fill_rate = (total_cells_compared / cell_denom) if cell_denom else 0
+
     result.summary = {
         "pk_match_rate": pk_match_rate,
         "cell_match_rate": cell_match_rate,
+        "cell_fill_rate": cell_fill_rate,
+        "n_cell_compared": total_cells_compared,
+        "n_cell_fill_gap": n_fill_gap,
         "n_matched": total_matched,
         "n_missing": total_missing,
         "n_extra": total_extra,
