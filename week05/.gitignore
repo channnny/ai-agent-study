@@ -27,3 +27,4 @@ vendor/leejihyun/output/per_university/
 *.env
 .env
 **/.env
+~$*.xlsx
