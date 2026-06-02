@@ -176,8 +176,10 @@ def extract_result_tables(soup: BeautifulSoup) -> List[dict]:
             ncol = len(flat_hdr)
             data = [r + [""] * (ncol - len(r)) for r in data]  # 길이 보정
             df = pd.DataFrame(data, columns=flat_hdr)
-            # 전형명을 첫 컬럼으로 (표마다 다른 전형 → 어댑터가 PK로 사용)
-            df.insert(0, "전형", jeonghyeong or tab_name)
+            # 전형 컬럼: 평면 헤더에 이미 '전형'이 있으면(어디가가 일반 컬럼으로
+            # 제공하는 대학) 그대로 사용, 없으면 추출한 전형명/탭명으로 삽입.
+            if "전형" not in df.columns:
+                df.insert(0, "전형", jeonghyeong or tab_name)
             tables.append(df)
 
         if tables:
