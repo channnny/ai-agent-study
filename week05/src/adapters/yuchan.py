@@ -75,10 +75,11 @@ def _parse_flat_table(ws, unv_cd: str, university: str, normalizer: Normalizer) 
         if h is None:
             continue
         hs = str(h).strip()
-        if hs == "전형":
+        # 접미 흔들림 흡수: '모집단위 (2026 학년도 기준)' 등 → startswith 매칭
+        if hs == "전형" and jeonghyeong_col is None:
             jeonghyeong_col = i
             continue
-        if hs == "모집단위":
+        if hs.startswith("모집단위") and moljip_col is None:
             moljip_col = i
             col_map[i] = "모집단위"
             continue
