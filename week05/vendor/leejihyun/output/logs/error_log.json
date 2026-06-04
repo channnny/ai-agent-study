@@ -565,5 +565,803 @@
     "stage": "T2",
     "error": "jeongsi_result: 0행 (빈 시트)",
     "timestamp": "2026-06-02T11:14:04"
+  },
+  {
+    "unvCd": "0000002",
+    "university": "국립강릉원주대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:56:46"
+  },
+  {
+    "unvCd": "0000002",
+    "university": "국립강릉원주대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:56:46"
+  },
+  {
+    "unvCd": "0000004",
+    "university": "강원대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:56:47"
+  },
+  {
+    "unvCd": "0000004",
+    "university": "강원대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:56:47"
+  },
+  {
+    "unvCd": "0000020",
+    "university": "국립순천대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:56:51"
+  },
+  {
+    "unvCd": "0000048",
+    "university": "가톨릭대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:56:58"
+  },
+  {
+    "unvCd": "0000048",
+    "university": "가톨릭대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:56:58"
+  },
+  {
+    "unvCd": "0000049",
+    "university": "가톨릭대학교[제3캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:56:58"
+  },
+  {
+    "unvCd": "0000049",
+    "university": "가톨릭대학교[제3캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:56:58"
+  },
+  {
+    "unvCd": "0000073",
+    "university": "광신대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:04"
+  },
+  {
+    "unvCd": "0000075",
+    "university": "광주가톨릭대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:05"
+  },
+  {
+    "unvCd": "0000075",
+    "university": "광주가톨릭대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:05"
+  },
+  {
+    "unvCd": "0000087",
+    "university": "대구예술대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:07"
+  },
+  {
+    "unvCd": "0000087",
+    "university": "대구예술대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:07"
+  },
+  {
+    "unvCd": "0000093",
+    "university": "대신대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:08"
+  },
+  {
+    "unvCd": "0000139",
+    "university": "수원가톨릭대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:16"
+  },
+  {
+    "unvCd": "0000139",
+    "university": "수원가톨릭대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:16"
+  },
+  {
+    "unvCd": "0000145",
+    "university": "아신대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:17"
+  },
+  {
+    "unvCd": "0000153",
+    "university": "영남신학대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:19"
+  },
+  {
+    "unvCd": "0000153",
+    "university": "영남신학대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:19"
+  },
+  {
+    "unvCd": "0000155",
+    "university": "영산선학대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:19"
+  },
+  {
+    "unvCd": "0000155",
+    "university": "영산선학대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:19"
+  },
+  {
+    "unvCd": "0000162",
+    "university": "을지대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:20"
+  },
+  {
+    "unvCd": "0000162",
+    "university": "을지대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:20"
+  },
+  {
+    "unvCd": "0000168",
+    "university": "인천가톨릭대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:21"
+  },
+  {
+    "unvCd": "0000174",
+    "university": "중앙대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:22"
+  },
+  {
+    "unvCd": "0000174",
+    "university": "중앙대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:22"
+  },
+  {
+    "unvCd": "0000177",
+    "university": "중앙승가대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:23"
+  },
+  {
+    "unvCd": "0000177",
+    "university": "중앙승가대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:23"
+  },
+  {
+    "unvCd": "0000188",
+    "university": "포항공과대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:24"
+  },
+  {
+    "unvCd": "0000204",
+    "university": "한양대학교(ERICA)[분교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:26"
+  },
+  {
+    "unvCd": "0000206",
+    "university": "한일장신대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:27"
+  },
+  {
+    "unvCd": "0000208",
+    "university": "호남대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:27"
+  },
+  {
+    "unvCd": "0000208",
+    "university": "호남대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:27"
+  },
+  {
+    "unvCd": "0000215",
+    "university": "가톨릭꽃동네대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:28"
+  },
+  {
+    "unvCd": "0000215",
+    "university": "가톨릭꽃동네대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:28"
+  },
+  {
+    "unvCd": "0000218",
+    "university": "예원예술대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:28"
+  },
+  {
+    "unvCd": "0000218",
+    "university": "예원예술대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:28"
+  },
+  {
+    "unvCd": "0000219",
+    "university": "예원예술대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:28"
+  },
+  {
+    "unvCd": "0000219",
+    "university": "예원예술대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:28"
+  },
+  {
+    "unvCd": "0000222",
+    "university": "부산장신대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:28"
+  },
+  {
+    "unvCd": "0000240",
+    "university": "우송대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:29"
+  },
+  {
+    "unvCd": "0000240",
+    "university": "우송대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:29"
+  },
+  {
+    "unvCd": "0000258",
+    "university": "전주교육대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:32"
+  },
+  {
+    "unvCd": "0000258",
+    "university": "전주교육대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:32"
+  },
+  {
+    "unvCd": "0002911",
+    "university": "을지대학교[제3캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:34"
+  },
+  {
+    "unvCd": "0002911",
+    "university": "을지대학교[제3캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:34"
+  },
+  {
+    "unvCd": "0002949",
+    "university": "홍익대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:34"
+  },
+  {
+    "unvCd": "0002949",
+    "university": "홍익대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:34"
+  },
+  {
+    "unvCd": "0003297",
+    "university": "국립창원대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:35"
+  },
+  {
+    "unvCd": "0003297",
+    "university": "국립창원대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:35"
+  },
+  {
+    "unvCd": "0003298",
+    "university": "국립창원대학교[제3캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:35"
+  },
+  {
+    "unvCd": "0003298",
+    "university": "국립창원대학교[제3캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:35"
+  },
+  {
+    "unvCd": "0003363",
+    "university": "강원대학교[제3캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:35"
+  },
+  {
+    "unvCd": "0003363",
+    "university": "강원대학교[제3캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:35"
+  },
+  {
+    "unvCd": "0003364",
+    "university": "강원대학교[제4캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:35"
+  },
+  {
+    "unvCd": "0003364",
+    "university": "강원대학교[제4캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T15:57:35"
+  },
+  {
+    "unvCd": "0000002",
+    "university": "국립강릉원주대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:01:48"
+  },
+  {
+    "unvCd": "0000002",
+    "university": "국립강릉원주대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:01:48"
+  },
+  {
+    "unvCd": "0000004",
+    "university": "강원대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:01:48"
+  },
+  {
+    "unvCd": "0000004",
+    "university": "강원대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:01:48"
+  },
+  {
+    "unvCd": "0000020",
+    "university": "국립순천대학교",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:01:53"
+  },
+  {
+    "unvCd": "0000048",
+    "university": "가톨릭대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:00"
+  },
+  {
+    "unvCd": "0000048",
+    "university": "가톨릭대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:00"
+  },
+  {
+    "unvCd": "0000049",
+    "university": "가톨릭대학교[제3캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:00"
+  },
+  {
+    "unvCd": "0000049",
+    "university": "가톨릭대학교[제3캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:00"
+  },
+  {
+    "unvCd": "0000073",
+    "university": "광신대학교",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:07"
+  },
+  {
+    "unvCd": "0000075",
+    "university": "광주가톨릭대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:07"
+  },
+  {
+    "unvCd": "0000075",
+    "university": "광주가톨릭대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:07"
+  },
+  {
+    "unvCd": "0000087",
+    "university": "대구예술대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:10"
+  },
+  {
+    "unvCd": "0000087",
+    "university": "대구예술대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:10"
+  },
+  {
+    "unvCd": "0000093",
+    "university": "대신대학교",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:10"
+  },
+  {
+    "unvCd": "0000139",
+    "university": "수원가톨릭대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:18"
+  },
+  {
+    "unvCd": "0000139",
+    "university": "수원가톨릭대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:18"
+  },
+  {
+    "unvCd": "0000145",
+    "university": "아신대학교",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:19"
+  },
+  {
+    "unvCd": "0000153",
+    "university": "영남신학대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:20"
+  },
+  {
+    "unvCd": "0000153",
+    "university": "영남신학대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:20"
+  },
+  {
+    "unvCd": "0000155",
+    "university": "영산선학대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:21"
+  },
+  {
+    "unvCd": "0000155",
+    "university": "영산선학대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:21"
+  },
+  {
+    "unvCd": "0000162",
+    "university": "을지대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:22"
+  },
+  {
+    "unvCd": "0000162",
+    "university": "을지대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:22"
+  },
+  {
+    "unvCd": "0000168",
+    "university": "인천가톨릭대학교",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:22"
+  },
+  {
+    "unvCd": "0000174",
+    "university": "중앙대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:24"
+  },
+  {
+    "unvCd": "0000174",
+    "university": "중앙대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:24"
+  },
+  {
+    "unvCd": "0000177",
+    "university": "중앙승가대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:24"
+  },
+  {
+    "unvCd": "0000177",
+    "university": "중앙승가대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:24"
+  },
+  {
+    "unvCd": "0000188",
+    "university": "포항공과대학교",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:26"
+  },
+  {
+    "unvCd": "0000204",
+    "university": "한양대학교ERICA",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:28"
+  },
+  {
+    "unvCd": "0000206",
+    "university": "한일장신대학교",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:28"
+  },
+  {
+    "unvCd": "0000208",
+    "university": "호남대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:29"
+  },
+  {
+    "unvCd": "0000208",
+    "university": "호남대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:29"
+  },
+  {
+    "unvCd": "0000215",
+    "university": "가톨릭꽃동네대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:30"
+  },
+  {
+    "unvCd": "0000215",
+    "university": "가톨릭꽃동네대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:30"
+  },
+  {
+    "unvCd": "0000218",
+    "university": "예원예술대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:30"
+  },
+  {
+    "unvCd": "0000218",
+    "university": "예원예술대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:30"
+  },
+  {
+    "unvCd": "0000219",
+    "university": "예원예술대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:30"
+  },
+  {
+    "unvCd": "0000219",
+    "university": "예원예술대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:30"
+  },
+  {
+    "unvCd": "0000222",
+    "university": "부산장신대학교",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:30"
+  },
+  {
+    "unvCd": "0000240",
+    "university": "우송대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:31"
+  },
+  {
+    "unvCd": "0000240",
+    "university": "우송대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:31"
+  },
+  {
+    "unvCd": "0000258",
+    "university": "전주교육대학교[본교]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:34"
+  },
+  {
+    "unvCd": "0000258",
+    "university": "전주교육대학교[본교]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:34"
+  },
+  {
+    "unvCd": "0002911",
+    "university": "을지대학교[제3캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:36"
+  },
+  {
+    "unvCd": "0002911",
+    "university": "을지대학교[제3캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:36"
+  },
+  {
+    "unvCd": "0002949",
+    "university": "홍익대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:36"
+  },
+  {
+    "unvCd": "0002949",
+    "university": "홍익대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:36"
+  },
+  {
+    "unvCd": "0003297",
+    "university": "국립창원대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:36"
+  },
+  {
+    "unvCd": "0003297",
+    "university": "국립창원대학교[제2캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:36"
+  },
+  {
+    "unvCd": "0003298",
+    "university": "국립창원대학교[제3캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:36"
+  },
+  {
+    "unvCd": "0003298",
+    "university": "국립창원대학교[제3캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:36"
+  },
+  {
+    "unvCd": "0003363",
+    "university": "강원대학교[제3캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:36"
+  },
+  {
+    "unvCd": "0003363",
+    "university": "강원대학교[제3캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:36"
+  },
+  {
+    "unvCd": "0003364",
+    "university": "강원대학교[제4캠퍼스]",
+    "stage": "T2",
+    "error": "susi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:37"
+  },
+  {
+    "unvCd": "0003364",
+    "university": "강원대학교[제4캠퍼스]",
+    "stage": "T2",
+    "error": "jeongsi_result: 0행 (빈 시트)",
+    "timestamp": "2026-06-04T16:02:37"
   }
 ]
