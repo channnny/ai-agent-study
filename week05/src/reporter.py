@@ -19,19 +19,6 @@ from .config import DATA_COLUMNS, PERSON_KOR
 from .matcher import PersonResult
 
 
-SUMMARY_METRICS_ORDER = [
-    ("pk_match_rate",   "PK 매칭률"),
-    ("cell_match_rate", "셀 일치율"),
-    ("n_matched",       "matched 행 수"),
-    ("n_missing",       "missing 행 수"),
-    ("n_extra",         "extra 행 수"),
-    ("n_golden_total",  "골든 전체 행 수"),
-    ("coverage_pct",    "커버리지(%)"),
-    ("n_failed_univ",   "fail 대학 수"),
-    ("n_missing_univ",  "missing 대학 수"),
-    ("pk_dod_pass",     "PK DoD 통과 (≥85%)"),
-    ("cell_dod_pass",   "셀 DoD 통과 (≥90%)"),
-]
 
 
 def _format_rate(v):
@@ -79,15 +66,16 @@ def build_summary(results: list[PersonResult]) -> pd.DataFrame:
 
     rows = []
 
-    # ── 핵심 3지표 (신호등 + 막대) ──
+    # ── 핵심 지표 (신호등 + 막대) ──
+    # 평가 핵심 = 셀 일치율(긁은 값 정확도). PK 매칭률은 골든 전형명 변동으로 평가 제외 → 참고용.
+    rows.append({"지표": "📊 셀 일치율 (긁은 값이 정확) ★평가기준", **{
+        col(r): _dash_cell((r.summary.get("cell_match_rate") or 0) * 100, 90, 50) for r in results}, "목표": "≥ 90%"})
     rows.append({"지표": "📊 커버리지 (몇 대학 시도)", **{
         col(r): _dash_cell(r.summary.get("coverage_pct"), 80, 40) for r in results}, "목표": "높을수록"})
-    rows.append({"지표": "📊 PK 매칭률 (같은 행 찾음)", **{
-        col(r): _dash_cell((r.summary.get("pk_match_rate") or 0) * 100, 85, 40) for r in results}, "목표": "≥ 85%"})
-    rows.append({"지표": "📊 셀 일치율 (긁은 값이 정확)", **{
-        col(r): _dash_cell((r.summary.get("cell_match_rate") or 0) * 100, 90, 50) for r in results}, "목표": "≥ 90%"})
     rows.append({"지표": "📊 셀 충진율 (얼마나 채웠나)", **{
         col(r): _dash_cell((r.summary.get("cell_fill_rate") or 0) * 100, 80, 50) for r in results}, "목표": "높을수록"})
+    rows.append({"지표": "(참고) PK 매칭률 — 평가 제외", **{
+        col(r): _dash_cell((r.summary.get("pk_match_rate") or 0) * 100, 85, 40) for r in results}, "목표": "전형명 변동"})
 
     # ── 구분 ──
     rows.append({"지표": "", **{col(r): "" for r in results}, "목표": ""})
@@ -112,12 +100,10 @@ def build_summary(results: list[PersonResult]) -> pd.DataFrame:
 
     # ── 종합 판정 ──
     rows.append({"지표": "", **{col(r): "" for r in results}, "목표": ""})
-    judge = {"지표": "🏁 종합 판정 (DoD)"}
+    judge = {"지표": "🏁 종합 판정 (셀 일치율 ≥90%)"}
     for r in results:
-        pk_ok = r.summary.get("pk_dod_pass")
-        cell_ok = r.summary.get("cell_dod_pass")
-        judge[col(r)] = "✅ 통과" if (pk_ok and cell_ok) else "❌ 미달"
-    judge["목표"] = "PK85·셀90"
+        judge[col(r)] = "✅ 통과" if r.summary.get("dod_pass") else "❌ 미달"
+    judge["목표"] = "셀 ≥90%"
     rows.append(judge)
 
     return pd.DataFrame(rows, columns=["지표"] + [col(r) for r in results] + ["목표"])
@@ -336,13 +322,13 @@ def build_glossary() -> pd.DataFrame:
         ("🟢 / 🟡 / 🔴 / ⬜", "🟢=목표 달성 / 🟡=절반 이상(아쉬움) / 🔴=목표 미달 / ⬜=데이터 없음(미수집)."),
         ("████░░░░░░", "비율 막대. 채워진 칸이 많을수록 높음 (한 칸 = 10%)."),
         ("", ""),
-        ("■ 핵심 지표 3단계 (①→②→③ 순서로 확인)", "셋 다 높아야 진짜 정확. 하나만 높으면 함정."),
-        ("① 커버리지", "골든 173개 대학 중 '데이터를 낸' 대학 비율. = 애초에 평가 테이블에 올라올 자격. (신호등: 80%↑🟢 / 40%↑🟡)"),
-        ("② PK 매칭률", "PK=(대학코드,전형,모집단위) 3개 조합. '둘 다 가진 PK 수 ÷ 골든 전체 PK 수'. = 빠뜨리지 않고 같은 행을 찾았는가?(양). 목표 ≥85%."),
-        ("③ 셀 일치율", "PK 매칭된 행에서 '양쪽 다 값이 있는 셀'만 비교해 일치한 비율. = 긁어온 값이 정확한가?(질). 한쪽만 값있는 셀(크롤러 미수집)은 분모에서 제외 — 그건 정확도가 아니라 충진율 문제. 목표 ≥90%."),
+        ("■ 평가 기준 = 셀 일치율 (★)", "회의 결정: 골든셋은 데이터랩스가 최종 정제하며 전형명 등이 변동되므로 PK 매칭률은 평가에서 제외. 목표는 '크롤링을 잘 해오는가' = 셀 일치율."),
+        ("★ 셀 일치율", "행 매칭된 곳에서 '양쪽 다 값이 있는 셀'만 비교해 일치한 비율. = 긁어온 값이 정확한가? 한쪽만 값있는 셀(크롤러 미수집)은 분모에서 제외(충진율로 따로 봄). 목표 ≥90%. 🏁 종합 판정의 단일 기준."),
         ("■ 보조 지표", ""),
-        ("④ 셀 충진율", "비교 대상 셀 중 '양쪽 다 값이 있던' 비율. 낮으면 = 골든엔 있는 항목을 크롤러가 덜 긁음(예: 어디가가 50%컷 미공개). 일치율과 분리해서 봐야 공정."),
-        ("🏁 종합 판정 (DoD)", "PK ≥85% '그리고' 셀 일치율 ≥90% 면 ✅ 통과, 아니면 ❌ 미달."),
+        ("커버리지", "골든 173개 대학 중 '데이터를 낸' 대학 비율. = 애초에 평가 테이블에 올라올 자격."),
+        ("셀 충진율", "비교 대상 셀 중 '양쪽 다 값이 있던' 비율. 낮으면 = 골든엔 있는 항목을 크롤러가 덜 긁음(예: 어디가가 50%컷 미공개)."),
+        ("(참고) PK 매칭률", "(대학코드,전형,모집단위)가 골든과 같은 행 비율. 전형명이 골든 정제 과정에서 변동되므로 평가에선 제외(참고만). 같은 PK에 크롤러 행이 여럿이면 골든과 가장 잘 맞는 행을 골라(best-match) 셀 비교."),
+        ("🏁 종합 판정", "셀 일치율 ≥90%면 ✅ 통과, 아니면 ❌ 미달. (PK는 판정에서 제외)"),
         ("", ""),
         ("■ 커버리지가 100%가 안 되는 이유", "→ 대학별 상세 명단은 '미수집대학' 시트."),
         ("(1) 어디가 미게시", "강릉원주대·가톨릭대(성의/성신교정)·대구예술대 등은 2025 전형 결과가 어디가에 아직 안 올라옴 → 유찬·이지현 모두 공통으로 못 냄 (크롤러 문제 아님, 소스 문제)."),

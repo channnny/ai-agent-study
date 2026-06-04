@@ -16,7 +16,7 @@ OUTPUT_DIR = WEEK5 / "output"
 VENDOR_DIR = WEEK5 / "vendor"
 LOGS_DIR   = OUTPUT_DIR / "logs"
 
-GOLDEN_PATH        = INPUT_DIR / "golden_2025_susi.xlsx"
+GOLDEN_PATH        = INPUT_DIR / "golden_2025_eodiga.xlsx"
 UNIVERSITIES_PATH  = INPUT_DIR / "universities_golden.csv"
 NORMALIZATION_PATH = INPUT_DIR / "normalization-dictionary.yaml"
 
@@ -37,13 +37,13 @@ CELL_MATCH_THRESHOLD = 0.90
 # ──────────────────────────────────────────────────────────────
 # 캐노니컬 스키마 (MVP — 모든 사람 출력 공통 부분만)
 # ──────────────────────────────────────────────────────────────
-# PK: (unvCd, 전형, 모집단위) — 대학명 표기 차이(캠퍼스 괄호 등)를 우회하기 위해
-#     대학 식별을 unvCd로 한다. 대학명은 표시용(GROUP_LABEL_COL).
-PK_COLUMNS = ["unvCd", "전형", "모집단위"]
+# PK: (대학, 전형, 모집단위) — 새 골든셋(어디가입결_통합본)은 unvCd가 없고
+#     대학명만 있다. 새 골든·유찬 둘 다 어디가 기반이라 대학명이 직접 일치.
+PK_COLUMNS = ["대학", "전형", "모집단위"]
 
-# 대학 그룹핑 키 (어댑터가 반환하는 dict의 key) = unvCd
-GROUP_KEY = "unvCd"
-# 표시용 대학명 컬럼 (리포트에서 사람이 읽기 위함)
+# 대학 그룹핑 키 (어댑터가 반환하는 dict의 key) = 대학명
+GROUP_KEY = "대학"
+# 표시용 대학명 컬럼 = PK의 대학 그 자체
 GROUP_LABEL_COL = "대학"
 
 # 데이터 컬럼 (전부 nullable. float은 NaN 허용)
@@ -58,8 +58,8 @@ DATA_COLUMNS = [
     "반영교과",            # str (전교과 등)
 ]
 
-# 캐노니컬 컬럼: PK(unvCd·전형·모집단위) + 표시용 대학명 + 데이터
-CANONICAL_COLUMNS = PK_COLUMNS + [GROUP_LABEL_COL] + DATA_COLUMNS
+# 캐노니컬 컬럼: PK(대학·전형·모집단위) + 데이터 (대학명이 PK에 포함됨)
+CANONICAL_COLUMNS = PK_COLUMNS + DATA_COLUMNS
 
 # ──────────────────────────────────────────────────────────────
 # 사람 식별

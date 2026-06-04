@@ -50,6 +50,8 @@ class Normalizer:
         if c is None:
             return None
         s = str(c)
+        # "N명 이하/이상" 류 꼬리말 제거 (충원합격순위 등 텍스트 표기) → 숫자만
+        s = re.sub(r"\s*(명\s*)?(이하|이상|미만|초과)\s*$", "", s)
         # 천 단위 콤마 제거
         s = s.replace(self.number_patterns.get("thousand_separator", ","), "")
         # 퍼센트 기호 제거

@@ -62,6 +62,25 @@ def _decimals(x: float) -> int:
     return len(s.split(".")[1].rstrip("0"))
 
 
+def _best_match_row(g_row, p_candidates):
+    """같은 PK에 묶인 크롤러 후보 행들 중, 골든 행과 셀 일치가 가장 많은 행 선택.
+
+    전형명 과정규화('일반' 등)로 서로 다른 전형이 같은 PK로 뭉쳤을 때,
+    골든이 가리키는 실제 행을 찾기 위함. (전형명은 평가에서 제외 — 회의 결정)
+    """
+    best, best_score = None, -1
+    for i in range(len(p_candidates)):
+        pr = p_candidates.iloc[i]
+        score = 0
+        for col in DATA_COLUMNS:
+            gv, pv = g_row.get(col), pr.get(col)
+            if not _is_empty(gv) and not _is_empty(pv) and _cells_equal(gv, pv):
+                score += 1
+        if score > best_score:
+            best_score, best = score, pr
+    return best
+
+
 def _cells_equal(g: Any, p: Any) -> bool:
     """골든 vs 사람 셀 일치 판정.
 
@@ -127,6 +146,7 @@ def evaluate_person(
     col_match_counts = defaultdict(lambda: [0, 0])  # 컬럼 → [matched, total]
     total_matched = total_missing = total_extra = total_golden = 0
     total_cells_compared = total_cells_matched = 0
+    n_pk_collision = 0
 
     for univ in sorted(set(golden.keys()) | set(person_data.keys())):
         # univ = unvCd. 표시용 대학명은 별도로.
@@ -209,13 +229,19 @@ def evaluate_person(
         if matched_keys:
             g_indexed = g_df.set_index(PK_COLUMNS)
             p_indexed = p_df.set_index(PK_COLUMNS)
-            # PK 중복 가능성 — 첫 번째만 사용
+            # 골든은 첫 행 사용(중복 드묾). 크롤러는 best-match로 행 선택.
             g_indexed = g_indexed[~g_indexed.index.duplicated(keep="first")]
-            p_indexed = p_indexed[~p_indexed.index.duplicated(keep="first")]
 
             for pk in matched_keys:
                 g_row = g_indexed.loc[pk]
-                p_row = p_indexed.loc[pk]
+                # 크롤러 후보 행들: 전형명 과정규화로 같은 PK에 여러 전형이
+                # 뭉칠 수 있음 → 골든과 셀 일치가 가장 많은 행을 선택(best-match).
+                p_candidates = p_indexed.loc[[pk]]
+                if len(p_candidates) > 1:
+                    n_pk_collision += 1
+                    p_row = _best_match_row(g_row, p_candidates)
+                else:
+                    p_row = p_candidates.iloc[0]
                 for col in DATA_COLUMNS:
                     gv = g_row.get(col)
                     pv = p_row.get(col)
@@ -265,10 +291,10 @@ def evaluate_person(
         pk_rate = (n_matched / n_golden) if n_golden else None
         cell_rate = (univ_cell_matched / univ_cell_total) if univ_cell_total else None
 
-        # status 결정
-        if pk_rate is None:
-            status = "fail"
-        elif pk_rate >= PK_MATCH_THRESHOLD and (cell_rate or 0) >= CELL_MATCH_THRESHOLD:
+        # status 결정 — 셀 일치율 단일 기준 (PK는 평가 제외: 전형명 변동 때문).
+        if cell_rate is None:
+            status = "fail"   # 매칭됐으나 비교 가능한 셀 없음
+        elif cell_rate >= CELL_MATCH_THRESHOLD:
             status = "pass"
         else:
             status = "fail"
@@ -301,11 +327,12 @@ def evaluate_person(
     cell_fill_rate = (total_cells_compared / cell_denom) if cell_denom else 0
 
     result.summary = {
-        "pk_match_rate": pk_match_rate,
+        "pk_match_rate": pk_match_rate,          # 참고용 (전형명 변동으로 평가 제외)
         "cell_match_rate": cell_match_rate,
         "cell_fill_rate": cell_fill_rate,
         "n_cell_compared": total_cells_compared,
         "n_cell_fill_gap": n_fill_gap,
+        "n_pk_collision": n_pk_collision,        # best-match로 해소한 PK 충돌 수
         "n_matched": total_matched,
         "n_missing": total_missing,
         "n_extra": total_extra,
@@ -313,7 +340,8 @@ def evaluate_person(
         "n_failed_univ": n_failed_univ,
         "n_missing_univ": n_missing_univ,
         "coverage_pct": coverage * 100,
-        "pk_dod_pass": pk_match_rate >= PK_MATCH_THRESHOLD,
+        # DoD = 셀 일치율 단일 기준 (PK 제외)
+        "dod_pass": cell_match_rate >= CELL_MATCH_THRESHOLD,
         "cell_dod_pass": cell_match_rate >= CELL_MATCH_THRESHOLD,
     }
 

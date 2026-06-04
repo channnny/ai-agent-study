@@ -95,7 +95,6 @@ def _parse_flat_table(ws, unv_cd: str, university: str, normalizer: Normalizer) 
         if not row or all(c is None for c in row):
             continue
         rec: dict = {c: None for c in CANONICAL_COLUMNS}
-        rec["unvCd"] = unv_cd
         rec["대학"] = university
         if jeonghyeong_col is not None and jeonghyeong_col < len(row):
             rec["전형"] = normalizer.jeonghyeong(row[jeonghyeong_col])
@@ -155,10 +154,10 @@ def load(output_root: Path, normalizer: Normalizer) -> dict[str, pd.DataFrame]:
             for sn in wb.sheetnames:
                 recs = _parse_flat_table(wb[sn], unv_cd, univ_name, normalizer)
                 if recs:
-                    by_univ[unv_cd].extend(recs)
+                    by_univ[univ_name].extend(recs)   # 대학명 키 (새 골든과 매칭)
 
     return {
-        unv_cd: pd.DataFrame(rows, columns=CANONICAL_COLUMNS)
-        for unv_cd, rows in by_univ.items()
+        univ_name: pd.DataFrame(rows, columns=CANONICAL_COLUMNS)
+        for univ_name, rows in by_univ.items()
         if rows
     }

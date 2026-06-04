@@ -112,9 +112,10 @@ def main():
     print("최종 요약:")
     for r in results:
         s = r.summary
-        dod = "✓" if (s["pk_dod_pass"] and s["cell_dod_pass"]) else "✗"
-        print(f"  {dod} {PERSON_KOR[r.person]:>3s}: PK {s['pk_match_rate']*100:.1f}% / "
-              f"Cell {s['cell_match_rate']*100:.1f}% / coverage {s['coverage_pct']:.1f}%")
+        dod = "✓" if s["dod_pass"] else "✗"
+        print(f"  {dod} {PERSON_KOR[r.person]:>3s}: Cell {s['cell_match_rate']*100:.1f}% "
+              f"(평가기준) / coverage {s['coverage_pct']:.1f}% / PK {s['pk_match_rate']*100:.1f}%(참고) "
+              f"/ 충돌해소 {s.get('n_pk_collision',0)}")
     print("="*60)
 
 
