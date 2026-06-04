@@ -83,7 +83,6 @@ def _parse_one_file(fp: Path, unv_cd: str, normalizer: Normalizer) -> list[dict]
         if not row or all(c is None for c in row):
             continue
         rec: dict = {col: None for col in CANONICAL_COLUMNS}
-        rec["unvCd"] = unv_cd
         for i, v in enumerate(row):
             cn = col_map.get(i)
             if cn is None:
@@ -91,7 +90,7 @@ def _parse_one_file(fp: Path, unv_cd: str, normalizer: Normalizer) -> list[dict]
             if cn == "전형":
                 rec[cn] = normalizer.jeonghyeong(v)
             elif cn == "대학":
-                rec[cn] = str(v).strip() if v else None
+                rec[cn] = normalizer.university(v)   # 표기 통일
             elif cn == "모집단위":
                 rec[cn] = normalizer.pk(v)
             elif cn == "모집인원":
@@ -122,13 +121,16 @@ def load(per_university_dir: Path, normalizer: Normalizer) -> dict[str, pd.DataF
     for fp in sorted(per_university_dir.glob("*.xlsx")):
         if fp.parent != per_university_dir:
             continue
-        unv_cd = fp.stem.strip()  # 파일명 = unvCd
+        unv_cd = fp.stem.strip()  # 파일명 = unvCd (참고용)
         recs = _parse_one_file(fp, unv_cd, normalizer)
-        if recs:
-            by_univ[unv_cd].extend(recs)
+        # 그룹키 = 파일 내 대학명(정규화) — 새 골든이 대학명 기반이라
+        for rec in recs:
+            uname = rec.get("대학")
+            if uname:
+                by_univ[uname].append(rec)
 
     return {
-        unv_cd: pd.DataFrame(rows, columns=CANONICAL_COLUMNS)
-        for unv_cd, rows in by_univ.items()
+        uname: pd.DataFrame(rows, columns=CANONICAL_COLUMNS)
+        for uname, rows in by_univ.items()
         if rows
     }

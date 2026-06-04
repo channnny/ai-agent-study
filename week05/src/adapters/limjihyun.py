@@ -88,7 +88,6 @@ def load(outputs_dir: Path, normalizer: Normalizer) -> dict[str, pd.DataFrame]:
             if not row or all(c is None for c in row):
                 continue
             rec: dict = {c: None for c in CANONICAL_COLUMNS}
-            rec["unvCd"] = unv_cd
             for i, v in enumerate(row):
                 cn = col_map.get(i)
                 if cn is None:
@@ -96,7 +95,7 @@ def load(outputs_dir: Path, normalizer: Normalizer) -> dict[str, pd.DataFrame]:
                 if cn == "전형":
                     rec[cn] = normalizer.jeonghyeong(v)
                 elif cn == "대학":
-                    rec[cn] = str(v).strip() if v else None
+                    rec[cn] = normalizer.university(v)   # 표기 통일
                 elif cn == "모집단위":
                     rec[cn] = normalizer.pk(v)
                 elif cn == "모집인원":
@@ -114,10 +113,12 @@ def load(outputs_dir: Path, normalizer: Normalizer) -> dict[str, pd.DataFrame]:
 
             if not all(rec.get(k) for k in PK_COLUMNS):
                 continue
-            by_univ[unv_cd].append(rec)
+            uname = rec.get("대학")
+            if uname:
+                by_univ[uname].append(rec)   # 그룹키 = 대학명(정규화)
 
     return {
-        unv_cd: pd.DataFrame(rows, columns=CANONICAL_COLUMNS)
-        for unv_cd, rows in by_univ.items()
+        uname: pd.DataFrame(rows, columns=CANONICAL_COLUMNS)
+        for uname, rows in by_univ.items()
         if rows
     }
