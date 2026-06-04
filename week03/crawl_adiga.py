@@ -184,6 +184,13 @@ def extract_result_tables(soup: BeautifulSoup) -> List[dict]:
 
         if tables:
             results.append({"tab": tab_name, "tables": tables})
+        else:
+            # 표가 없으면 이미지로 전형결과를 올린 대학(예: 가톨릭꽃동네대).
+            # 이미지 URL을 수집해 두면 OCR/비전 모델로 후처리할 수 있다.
+            imgs = [im.get("src", "") for im in inner_soup.find_all("img")
+                    if "astFileHandler" in (im.get("src", "") or "")]
+            if imgs:
+                results.append({"tab": tab_name, "tables": [], "images": imgs})
 
     return results
 
@@ -227,15 +234,45 @@ def crawl(unv_cd: str, search_syr: str) -> dict:
                     rows = df.to_dict(orient="records")
                     insert_results(conn, unv_cd, search_syr, item["tab"], rows, crawled_at)
 
-    # 엑셀 저장
+    # 엑셀 저장 + 이미지 케이스 다운로드
     saved = []
+    n_images = 0
     for item in results:
-        path = save_to_excel(unv_cd, univ_name, item["tab"], item["tables"])
-        total_rows = sum(len(df) for df in item["tables"])
-        saved.append({"tab": item["tab"], "tables": len(item["tables"]), "rows": total_rows, "file": path.name})
+        if item["tables"]:
+            path = save_to_excel(unv_cd, univ_name, item["tab"], item["tables"])
+            total_rows = sum(len(df) for df in item["tables"])
+            saved.append({"tab": item["tab"], "tables": len(item["tables"]), "rows": total_rows, "file": path.name})
+        elif item.get("images"):
+            # 전형결과가 이미지인 대학 → 이미지 다운로드 + OCR 필요 표시.
+            # (표 크롤링으로는 추출 불가. 비전 모델/OCR로 후처리 → 캐노니컬화)
+            n_images += _save_images(unv_cd, univ_name, item["tab"], item["images"])
 
     elapsed = time.perf_counter() - t0
-    return {"unv_cd": unv_cd, "univ_name": univ_name, "saved": saved, "elapsed": elapsed}
+    return {"unv_cd": unv_cd, "univ_name": univ_name, "saved": saved,
+            "n_images": n_images, "elapsed": elapsed}
+
+
+def _save_images(unv_cd: str, univ_name: str, tab_name: str, image_urls: list) -> int:
+    """전형결과 이미지 다운로드 + OCR_REQUIRED 마커. 반환: 저장 이미지 수."""
+    safe_univ = re.sub(r"[^\w가-힣]", "", univ_name)
+    safe_tab = re.sub(r"[^\w가-힣]", "", tab_name)
+    img_dir = OUTPUT_DIR / f"{unv_cd}_{safe_univ}" / "images"
+    img_dir.mkdir(parents=True, exist_ok=True)
+    cnt = 0
+    for i, url in enumerate(image_urls, 1):
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=15)
+            r.raise_for_status()
+            (img_dir / f"{safe_tab}_{i}.png").write_bytes(r.content)
+            cnt += 1
+        except Exception:
+            pass
+    # OCR 필요 마커 (비전 모델 후처리 대상)
+    (img_dir / "OCR_REQUIRED.txt").write_text(
+        f"{univ_name}({unv_cd}) {tab_name}: 전형결과가 이미지 {cnt}장.\n"
+        "표 크롤링 불가 → 비전 모델/OCR로 캐노니컬화 필요.\n",
+        encoding="utf-8")
+    return cnt
 
 
 # ── 입력 로드 ────────────────────────────────────────────────────────────────
@@ -261,7 +298,9 @@ def run_batch(batch: List[Tuple[str, str]], batch_no: int, total_batches: int) -
                 print(f"  [{r['elapsed']:.1f}s] {r['univ_name']} (unvCd={r['unv_cd']})")
                 for s in r["saved"]:
                     print(f"    [{s['tab']}] 테이블 {s['tables']}개, 행 {s['rows']}개 → {s['file']}")
-                if not r["saved"]:
+                if r.get("n_images"):
+                    print(f"    이미지 {r['n_images']}장 다운로드 (OCR 필요 — 비전 모델 후처리)")
+                if not r["saved"] and not r.get("n_images"):
                     print("    전형 결과 데이터 없음")
             except Exception as e:
                 failed.append(unv_cd)
