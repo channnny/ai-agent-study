@@ -69,8 +69,9 @@ def _parse_flat_table(ws, unv_cd: str, university: str, normalizer: Normalizer) 
 
     # 헤더 → 컬럼 인덱스 매핑
     col_map: dict[int, str] = {}
-    jeonghyeong_col = None
+    jeonghyeong_col = None      # '전형' 컬럼 (일반=전형/탭명, 교대형=colspan 그룹=학과명)
     moljip_col = None
+    jhmyeong_col = None         # '전형명' 컬럼 (교대형에서 실제 전형)
     for i, h in enumerate(header):
         if h is None:
             continue
@@ -78,6 +79,9 @@ def _parse_flat_table(ws, unv_cd: str, university: str, normalizer: Normalizer) 
         # 접미 흔들림 흡수: '모집단위 (2026 학년도 기준)' 등 → startswith 매칭
         if hs == "전형" and jeonghyeong_col is None:
             jeonghyeong_col = i
+            continue
+        if hs == "전형명" and jhmyeong_col is None:
+            jhmyeong_col = i
             continue
         if hs.startswith("모집단위") and moljip_col is None:
             moljip_col = i
@@ -87,9 +91,12 @@ def _parse_flat_table(ws, unv_cd: str, university: str, normalizer: Normalizer) 
         if cn and cn not in col_map.values():  # 첫 매칭 우선(중복 헤더 방지)
             col_map[i] = cn
 
-    # 모집단위 컬럼이 없으면 신뢰 불가 → 스킵
-    if moljip_col is None:
-        return []
+    # 교대형 표: 모집단위 컬럼이 없고 '전형명' 컬럼이 있음.
+    # 모집단위가 colspan 그룹 헤더로 빠져 '전형' 컬럼에 학과명이 들어옴(예: 초등교육학과).
+    # → 전형 = '전형명' 컬럼, 모집단위 = '전형' 컬럼(학과명)으로 교정.
+    edu_pivot = (moljip_col is None and jhmyeong_col is not None and jeonghyeong_col is not None)
+    if moljip_col is None and not edu_pivot:
+        return []   # 모집단위도 전형명도 없으면 신뢰 불가
 
     records = []
     for row in rows_iter:
@@ -97,7 +104,13 @@ def _parse_flat_table(ws, unv_cd: str, university: str, normalizer: Normalizer) 
             continue
         rec: dict = {c: None for c in CANONICAL_COLUMNS}
         rec["대학"] = university
-        if jeonghyeong_col is not None and jeonghyeong_col < len(row):
+        if edu_pivot:
+            # 교대형: 전형='전형명' 컬럼, 모집단위='전형' 컬럼(학과명)
+            if jhmyeong_col < len(row):
+                rec["전형"] = normalizer.jeonghyeong(row[jhmyeong_col])
+            if jeonghyeong_col < len(row):
+                rec["모집단위"] = normalizer.pk(row[jeonghyeong_col])
+        elif jeonghyeong_col is not None and jeonghyeong_col < len(row):
             rec["전형"] = normalizer.jeonghyeong(row[jeonghyeong_col])
 
         for i, v in enumerate(row):
