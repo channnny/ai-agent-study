@@ -53,7 +53,9 @@ def load(golden_path: Path, normalizer: Normalizer) -> dict[str, pd.DataFrame]:
         univ_name = row[0]
         if not univ_name:
             continue
-        univ_name = str(univ_name).strip()
+        univ_name = normalizer.university(univ_name)   # 표기 통일
+        if not univ_name:
+            continue
 
         rec: dict = {c: None for c in CANONICAL_COLUMNS}
         for idx, cn in GOLDEN_COL_MAP.items():

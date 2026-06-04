@@ -142,6 +142,7 @@ def load(output_root: Path, normalizer: Normalizer) -> dict[str, pd.DataFrame]:
             unv_cd, univ_name = folder.split("_", 1)
         else:
             unv_cd, univ_name = folder, folder
+        univ_name = normalizer.university(univ_name)   # 골든과 표기 통일
 
         for xlsx in sorted(univ_dir.glob("*.xlsx")):
             # 골든셋은 수시(susi)만 → 정시(수능위주) 탭은 비교 대상 아님, 제외
