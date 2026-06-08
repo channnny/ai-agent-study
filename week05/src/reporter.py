@@ -262,16 +262,14 @@ def build_mismatch(results: list[PersonResult]) -> pd.DataFrame:
 
 
 def build_uncovered(results: list[PersonResult]) -> pd.DataFrame:
-    """커버리지 100%가 안 되는 이유 — 데이터를 못 낸 골든 대학 명단.
+    """커버리지 100%가 안 되는 이유 — 한 명이라도 못 낸 골든 대학 명단.
 
-    유찬·이지현 둘 다 못 낸 대학 = 어디가 2025 미게시 추정(소스 문제).
-    한쪽만 못 낸 대학 = 해당 크롤러 미수집.
+    각 사람의 status(pass/fail/missing)를 그대로 표시. 모두 missing이면
+    어디가 소스 문제(이미지/미게시) 추정, 일부만 missing이면 해당 크롤러 한계.
     """
-    by_person = {r.person: r for r in results}
-    yuchan = by_person.get("yuchan")
-    lee = by_person.get("lee")
+    persons = list(results)  # 평가에 포함된 모든 사람(유찬·이지현·임지현)
 
-    # 모든 unvCd + 대학명 수집
+    # 모든 대학 + 대학명 수집
     names: dict[str, str] = {}
     for r in results:
         for u, m in r.by_university.items():
@@ -281,32 +279,28 @@ def build_uncovered(results: list[PersonResult]) -> pd.DataFrame:
 
     rows = []
     for u in sorted(names):
-        # 골든에 실재하는 대학만 (어느 사람 기준이든 골든 행 수 > 0)
+        # 골든에 실재하는 대학만
         ng = max((r.by_university.get(u, {}).get("n_golden", 0) or 0) for r in results)
         if ng == 0:
             continue
-        y_st = yuchan.by_university.get(u, {}).get("status") if yuchan else None
-        l_st = lee.by_university.get(u, {}).get("status") if lee else None
-        y_miss = (y_st == "missing")
-        l_miss = (l_st == "missing")
-        if not (y_miss or l_miss):
-            continue  # 둘 다 데이터 냄 → 제외
+        statuses = {r.person: r.by_university.get(u, {}).get("status") for r in persons}
+        missers = [r.person for r in persons if statuses.get(r.person) == "missing"]
+        if not missers:
+            continue  # 전원 데이터 냄 → 제외
 
-        if y_miss and l_miss:
-            cause = "① 어디가 2025 미게시 추정 (유찬·이지현 공통 누락)"
-        elif y_miss:
-            cause = "② 유찬만 미수집 (복잡 테이블 등)"
+        n_miss = len(missers)
+        if n_miss == len(persons):
+            cause = "전원 미수집 (어디가 이미지/미게시 등 소스 문제 추정)"
         else:
-            cause = "③ 이지현만 미수집"
-        rows.append({
-            "unvCd": u,
-            "대학명": names[u],
-            "골든 행수": ng,
-            "유찬": y_st or "-",
-            "이지현": l_st or "-",
-            "추정 원인": cause,
-        })
-    # 공통 누락(①) 먼저 보이도록 정렬
+            kor = [PERSON_KOR.get(p, p) for p in missers]
+            cause = f"{'·'.join(kor)} 미수집 ({n_miss}/{len(persons)})"
+
+        row = {"대학명": names[u], "골든 행수": ng}
+        for r in persons:
+            row[PERSON_KOR.get(r.person, r.person)] = statuses.get(r.person) or "-"
+        row["추정 원인"] = cause
+        rows.append(row)
+
     df = pd.DataFrame(rows)
     if not df.empty:
         df = df.sort_values(["추정 원인", "대학명"]).reset_index(drop=True)
@@ -341,7 +335,7 @@ def build_glossary() -> pd.DataFrame:
         ("대학별", "대학마다 사람별 1칸 = '신호등 PK% · 셀% (맞은행/골든행)'. 배경색=신호등. 데이터 많은 대학이 위, 미수집은 아래. 같은 대학명 2줄=캠퍼스 분리(unvCd 다름)."),
         ("항목별", "데이터 항목별 일치율(매칭+양쪽 값 있는 셀 기준). 낮은 항목 = 그 항목 파싱 우선 개선."),
         ("  └ 반영교과 0%", "자동비교 한계 항목. 골든은 상세 기입('국수영과,전교과,동일비율,진로,미반영'), 어디가/크롤러는 요약('전교과')이라 정보량이 달라 전부 불일치. 사람 검수 또는 W06 파싱 개선 대상 — 다른 항목 정확도와 분리해서 볼 것."),
-        ("미수집대학", "커버리지 미달 대학 명단 + 추정 원인(①소스 미게시 / ②③크롤러 미수집)."),
+        ("미수집대학", "한 명이라도 못 낸 대학(3인 전원 status 표시) + 추정 원인. 전원 미수집=소스 문제(이미지·미게시), 일부만=해당 크롤러 한계."),
         ("누락·잉여", "🔴누락(골든O·크롤러X) + 🔵잉여(크롤러O·골든X)를 한 시트에. 같은 대학·모집단위로 정렬돼 전형명만 다른 쌍이 인접 → PK 격차 원인이 보임."),
         ("불일치셀", "PK·셀 양쪽 다 값이 있는데 값이 다른 칸만. 🔴값다름(진짜 오류, 위쪽) / 🟡거의같음(콤마·반올림=사실상 정답). 한쪽만 값있는 셀(미수집)은 여기 없고 충진율로 집계. 골든값↔크롤러값 나란히."),
     ]
@@ -525,9 +519,9 @@ def write_report(results: list[PersonResult], output_path: Path) -> None:
         _write_styled(writer, by_col, "항목별",
             "8개 데이터 항목별 일치율(매칭된 행 한정). 숫자가 낮은 항목 = 그 항목 파싱이 부정확 → 우선 개선 대상. 예: '학생부등급_50컷'이 낮으면 등급 파싱 로직 점검.")
         _write_styled(writer, uncovered, "미수집대학",
-            "커버리지가 100%가 안 되는 대학 명단. '골든 행수'=골든셋에 있는 그 대학 행 수(놓친 양). "
-            "추정 원인 ①=어디가에 2025 결과 미게시(소스 문제, 누구도 못 함) / ②=유찬만 미수집(복잡 테이블 등) / ③=이지현만 미수집. "
-            "'유찬'·'이지현' 칸의 missing=그 사람이 못 냄.")
+            "한 명이라도 못 낸 대학 명단(3인 전원 표시). '골든 행수'=골든셋의 그 대학 행 수(놓친 양). "
+            "각 사람 칸: missing=그 사람이 못 냄 / fail·pass=데이터는 냄. "
+            "추정 원인: 전원 미수집=어디가 소스 문제(이미지 업로드·미게시 등), 일부만=해당 크롤러 한계(교대형 표·전형 파싱 누락 등).")
         _write_styled(writer, diff, "누락·잉여",
             "🔴누락=골든엔 있는데 크롤러가 못 찾음 / 🔵잉여=크롤러엔 있는데 골든엔 없음. "
             "같은 사람·대학·모집단위로 정렬돼 전형명만 다른 누락↔잉여 쌍이 인접 → PK 격차의 주원인이 보임. "
