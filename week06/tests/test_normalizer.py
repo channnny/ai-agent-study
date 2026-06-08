@@ -56,5 +56,20 @@ def test_jeonghyeong_wrapper_strip():
 
 
 def test_jeonghyeong_preserves_classification_axis():
-    # (종합)/(교과) 분류축은 보존 — 충돌 방지
+    # (종합)/(교과) 분류축은 보존 — 별도 프로그램 병합(데이터 손실) 방지
     assert NZ.jeonghyeong("농어촌(교과)") != NZ.jeonghyeong("농어촌(종합)")
+
+
+def test_jeonghyeong_bracket_to_paren():
+    # 대괄호 ≡ 소괄호 ("고른기회[특수교육]" ≡ "고른기회(특수교육)")
+    assert NZ.jeonghyeong("고른기회[특수교육]") == NZ.jeonghyeong("고른기회(특수교육)")
+
+
+def test_jeonghyeong_strip_wrapping_paren():
+    # 전체를 감싼 괄호만 벗김 ("(추천형)" → "추천형")
+    assert NZ.jeonghyeong("(추천형)") == NZ.jeonghyeong("추천형")
+
+
+def test_jeonghyeong_wrapping_strip_keeps_axis_token():
+    # "(교과)" 단독은 분류축이므로 벗기지 않음 (의미 유지)
+    assert NZ.jeonghyeong("(교과)") not in (None, "")
