@@ -568,87 +568,149 @@ def _filter(ws, ncols: int, ndata: int):
     ws.auto_filter.ref = f"A3:{last_col}{3 + ndata}"
 
 
-def write_structured(units: list[dict], 대학명: str, out_path: str | Path):
-    """구조화 엑셀 저장. 2개 데이터 시트 + 열람 시트."""
-    from openpyxl.styles.borders import Border as _Border
+WORKERS = 6
+
+
+def _crawl_one(u: dict, 대학명: str) -> dict:
+    """단일 (전형×모집단위) 크롤+빌드. 상태/사유 포함 레코드 반환."""
+    rec = {"unvCd": u["unvCd"], "대학명": 대학명,
+           "전형명": u.get("전형명", "").split(">")[-1].strip(),
+           "학과명": u.get("학과명", ""), "status": "ok", "error": "",
+           "sched": None, "elem": None, "has_elem": False}
+    try:
+        hs, he = B.fetch_pages(u)
+        _, rec["sched"] = build_row(u, 대학명, hs, he, "전형일정및방법")
+        _, rec["elem"] = build_row(u, 대학명, hs, he, "전형요소")
+        # 전형요소 실데이터 유무(식별 8열 뒤 값이 하나라도 차있으면 보유)
+        rec["has_elem"] = any(v for v in rec["elem"][N_IDENT:])
+    except Exception as e:
+        rec["status"] = "error"
+        rec["error"] = f"{type(e).__name__}: {e}"
+    return rec
+
+
+def _write_data_sheet(ws, headers, rows):
+    _write_headers(ws, headers)
+    for ri, row in enumerate(rows, start=4):
+        for ci, val in enumerate(row, start=1):
+            cell = ws.cell(row=ri, column=ci, value=val)
+            cell.alignment = LEFT
+            cell.border = BORDER
+    ws.freeze_panes = "A4"
+    B.autofit(ws)
+    _filter(ws, len(headers), len(rows))
+
+
+def write_structured(records: list[dict], out_path: str | Path):
+    """성공 레코드 → 구조화 2시트(전형일정및방법/전형요소)."""
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-
+    ok = [r for r in records if r["status"] == "ok"]
     wb = Workbook()
-    ws1 = wb.active
-    ws1.title = "전형일정및방법"
+    ws1 = wb.active; ws1.title = "전형일정및방법"
     ws2 = wb.create_sheet("전형요소")
-    ws3 = wb.create_sheet("열람(전형별)")
-
-    pages_cache = {}  # id(u) → (hs, he)
-
-    print(f"  총 {len(units)}건 크롤링 시작...")
-    for u in units:
-        hs, he = B.fetch_pages(u)
-        pages_cache[id(u)] = (hs, he)
-
-    # ── 전형일정및방법 ─────────────────────────────────────────
-    all_rows_sched = []
-    sched_headers = None
-    for u in units:
-        hs, he = pages_cache[id(u)]
-        hdrs, vals = build_row(u, 대학명, hs, he, "전형일정및방법")
-        if sched_headers is None:
-            sched_headers = hdrs
-        all_rows_sched.append(vals)
-
-    if sched_headers:
-        _write_headers(ws1, sched_headers)
-        for row_idx, row_data in enumerate(all_rows_sched, start=4):
-            for col_idx, val in enumerate(row_data, start=1):
-                cell = ws1.cell(row=row_idx, column=col_idx, value=val)
-                cell.alignment = LEFT
-                cell.border = BORDER
-        ws1.freeze_panes = "A4"
-        B.autofit(ws1)
-        _filter(ws1, len(sched_headers), len(all_rows_sched))
-
-    # ── 전형요소 ────────────────────────────────────────────────
-    all_rows_elem = []
-    elem_headers = None
-    for u in units:
-        hs, he = pages_cache[id(u)]
-        hdrs, vals = build_row(u, 대학명, hs, he, "전형요소")
-        if elem_headers is None:
-            elem_headers = hdrs
-        all_rows_elem.append(vals)
-
-    if elem_headers:
-        _write_headers(ws2, elem_headers)
-        for row_idx, row_data in enumerate(all_rows_elem, start=4):
-            for col_idx, val in enumerate(row_data, start=1):
-                cell = ws2.cell(row=row_idx, column=col_idx, value=val)
-                cell.alignment = LEFT
-                cell.border = BORDER
-        ws2.freeze_panes = "A4"
-        B.autofit(ws2)
-        _filter(ws2, len(elem_headers), len(all_rows_elem))
-
-    # ── 열람(전형별) ─────────────────────────────────────────────
-    B.render_blocks(ws3, units, 대학명, pages=pages_cache)
-
+    if ok:
+        sched_h = list(_IDENT_HEADERS) + list(_SCHED_HEADERS)
+        elem_h = list(_IDENT_HEADERS) + list(_ELEM_HEADERS)
+        _write_data_sheet(ws1, sched_h, [r["sched"] for r in ok])
+        _write_data_sheet(ws2, elem_h, [r["elem"] for r in ok])
     wb.save(out_path)
     print(f"  저장: {out_path}")
 
 
+def write_report(records: list[dict], out_path: str | Path, elapsed: float = 0.0):
+    """크롤링 리포트 — 종합(요약) + 대학별 + 실패상세 (week06 스펙)."""
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    n = len(records)
+    n_ok = sum(1 for r in records if r["status"] == "ok")
+    n_err = sum(1 for r in records if r["status"] == "error")
+    n_elem = sum(1 for r in records if r["status"] == "ok" and r["has_elem"])
+    m, s = divmod(int(elapsed), 60)
+
+    wb = Workbook()
+    # ── 종합(요약) ──
+    ws = wb.active; ws.title = "종합"
+    summary = [
+        ("크롤링 시도 (전형×모집단위)", f"{n}건"),
+        ("성공", f"{n_ok}건"),
+        ("실패", f"{n_err}건"),
+        ("성공률", f"{(n_ok/n*100 if n else 0):.1f}%"),
+        ("전형요소 보유 전형", f"{n_elem}건"),
+        ("소요 시간", f"{m}분 {s}초"),
+    ]
+    ws.append(["항목", "값"])
+    for k, v in summary:
+        ws.append([k, v])
+    for c in ws[1]:
+        c.fill = HEAD_FILL; c.font = HEAD_FONT; c.alignment = CENTER
+
+    # ── 대학별 ──
+    wd = wb.create_sheet("대학별")
+    wd.append(["대학코드", "대학명", "시도", "성공", "실패", "전형요소보유"])
+    by_univ = {}
+    for r in records:
+        d = by_univ.setdefault(r["unvCd"], {"name": r["대학명"], "n": 0, "ok": 0, "err": 0, "elem": 0})
+        d["n"] += 1
+        d["ok"] += r["status"] == "ok"
+        d["err"] += r["status"] == "error"
+        d["elem"] += r["status"] == "ok" and r["has_elem"]
+    for code, d in by_univ.items():
+        wd.append([code, d["name"], d["n"], d["ok"], d["err"], d["elem"]])
+    for c in wd[1]:
+        c.fill = HEAD_FILL; c.font = HEAD_FONT; c.alignment = CENTER
+
+    # ── 실패상세 ──
+    wf = wb.create_sheet("실패상세")
+    wf.append(["대학명", "전형명", "모집단위명", "사유"])
+    for r in records:
+        if r["status"] == "error":
+            wf.append([r["대학명"], r["전형명"], r["학과명"], r["error"]])
+    for c in wf[1]:
+        c.fill = HEAD_FILL; c.font = HEAD_FONT; c.alignment = CENTER
+
+    for w in (ws, wd, wf):
+        B.autofit(w)
+    wb.save(out_path)
+    print(f"  리포트: {out_path}  | 시도 {n} / 성공 {n_ok} / 실패 {n_err}")
+
+
+def crawl_university(units: list[dict], 대학명: str) -> list[dict]:
+    """대학 전체 (전형×모집단위) 병렬 크롤 → 레코드 목록."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    print(f"  · {대학명}: {len(units)}건 크롤 시작 (동시 {WORKERS})")
+    records, done = [], [0]
+    with ThreadPoolExecutor(max_workers=WORKERS) as ex:
+        futs = [ex.submit(_crawl_one, u, 대학명) for u in units]
+        for fut in as_completed(futs):
+            records.append(fut.result())
+            done[0] += 1
+            if done[0] % 100 == 0:
+                print(f"    … {done[0]}/{len(units)}", flush=True)
+    return records
+
+
 def main():
     import json
+    import time as _time
     ROOT = Path(__file__).resolve().parents[2]
-    with open(ROOT / "week09" / "output" / "enum" / "가천대.json", encoding="utf-8") as f:
+    OUT = ROOT / "week09" / "output"
+    sample = "--sample" in sys.argv
+    with open(OUT / "enum" / "가천대.json", encoding="utf-8") as f:
         units = json.load(f)
+    if sample:
+        units = [u for u in units if u.get("학과명", "").startswith("AI인문")][:5]
+    대학명 = "가천대학교[본교]"
 
-    ai5 = [u for u in units if u.get("학과명", "").startswith("AI인문")][:5]
-    print(f"샘플 5 전형: {[u['전형명'].split('>')[-1].strip() for u in ai5]}")
-    write_structured(
-        ai5,
-        "가천대학교[본교]",
-        ROOT / "week09" / "output" / "preview" / "가천대_샘플5_구조화.xlsx",
-    )
+    print(f"=== 전형정보 구조화 크롤 — {대학명} {len(units)}건 ===")
+    t0 = _time.time()
+    records = crawl_university(units, 대학명)
+    elapsed = _time.time() - t0
+
+    write_structured(records, OUT / "대학별" / f"{대학명}_전형정보.xlsx")
+    write_report(records, OUT / "크롤링_리포트.xlsx", elapsed)
+    m, s = divmod(int(elapsed), 60)
+    print(f"⏱ {m}분 {s}초")
 
 
 if __name__ == "__main__":
