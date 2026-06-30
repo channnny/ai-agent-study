@@ -36,23 +36,92 @@ def parse_fragment(html: str) -> list[dict]:
         rows.append(rec)
     return rows
 
-def fetch(unv_cd: str, syr: str = "2027") -> list[dict]:
-    """대학 → 전형 목록 (3단계 AJAX)."""
-    import requests
-    sess = requests.Session()
-    rv = net._request("GET", VIEW_URL,
-                      params={"menuId": "PCPRCINF2000", "unvCd": unv_cd, "searchSyr": syr},
-                      session=sess)
-    form = _form_fields(rv.text)
-    form.update({"searchSyr": syr, "unvCd": unv_cd})
-    hdr = {"X-Requested-With": "XMLHttpRequest",
-           "Referer": rv.url, "Origin": "https://www.adiga.kr"}
-    ra = net._request("POST", UNIV_AJAX_URL, data={**form, "searchUnvCode": unv_cd},
-                      headers=hdr, session=sess)
-    li = BeautifulSoup(ra.text, "html.parser").select_one("li.opnfldClass[comscsbjtcd]")
-    if not li:
-        return []
-    com = li.get("comscsbjtcd")
-    rl = net._request("POST", LIST_URL, data={**form, "unvCd": unv_cd, "comScsbjtCd": com},
-                      headers=hdr, session=sess)
-    return parse_fragment(rl.text)
+# ── 전형×모집단위 열거 (Playwright) ───────────────────────────
+# requests로는 불가: admssUnivAjax/LstAjax가 페이지 JS가 만든 서버측 세션
+# 상태를 요구함(동일 본문·CSRF·쿠키로도 빈 결과 — 2026-06-30 검증). 진짜
+# 브라우저(Playwright headless)가 세션을 워밍하면 in-page fetch로 열거 가능.
+#
+# 모델(spike 확정): comScsbjtCd = 학과(모집단위) 코드. 대학 검색 →
+#   admssUnivAjax 페이지네이션으로 학과(comScsbjtCd) 수집 →
+#   학과별 LstAjax → 전형 sub-행(fnDetailPage 9인자) = (전형×모집단위).
+
+# 페이지 내에서 실행: 학과 페이지네이션 수집 → 학과별 LstAjax → tuple 배열 반환
+_HARVEST_JS = r"""
+async (unvCd) => {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const csrf = (document.querySelector('meta[name=_csrf]') || {}).content || '';
+  const frm = document.querySelector('#frm');
+  const H = {'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8',
+             'X-Requested-With':'XMLHttpRequest','X-CSRF-TOKEN':csrf};
+  const post = async (url, ov) => {
+    const b = new URLSearchParams(new FormData(frm));
+    for (const k in ov) b.set(k, ov[k]);
+    const r = await fetch(url, {method:'POST', headers:H, body:b.toString()});
+    return await r.text();
+  };
+  const parse = h => new DOMParser().parseFromString(h, 'text/html');
+  // 1) 학과(comScsbjtCd) 수집 — 페이지네이션
+  const deptMap = {};
+  for (let pg = 1; pg <= 80; pg++) {
+    const doc = parse(await post('/ucp/prc/uni/admssUnivAjax.do', {'pagination.currentPage': String(pg)}));
+    const lis = [...doc.querySelectorAll('li.opnfldClass[comscsbjtcd]')]
+                  .filter(li => li.getAttribute('unvcd') === unvCd);
+    if (!lis.length) break;
+    const byCom = {};
+    lis.forEach(li => { const c = li.getAttribute('comscsbjtcd');
+      (byCom[c] = byCom[c] || []).push((li.textContent || '').replace(/\s+/g,' ').trim()); });
+    for (const c in byCom) if (!(c in deptMap)) {
+      const dept = byCom[c].find(t => /\(주간\)|\(야간\)|학과|학부|전공|대학$/.test(t)
+                                      && !/대학교\s*\[/.test(t)) || '';
+      deptMap[c] = dept;
+    }
+    await sleep(250);
+  }
+  // 2) 학과별 LstAjax → 전형 sub-행(fnDetailPage 9인자)
+  const out = [];
+  for (const com in deptMap) {
+    const doc = parse(await post('/ucp/prc/uni/admssUnivDetailLstAjax.do', {unvCd, comScsbjtCd: com}));
+    doc.querySelectorAll('a.selectUnivComScsbjtCd').forEach(a => {
+      const m = (a.getAttribute('onclick') || '').match(/fnDetailPage\(([^)]*)\)/);
+      if (!m) return;
+      const args = m[1].split(',').map(s => s.trim().replace(/^["']|["']$/g, ''));
+      out.push({args, jh: (a.textContent || '').replace(/\s+/g,' ').trim(), dept: deptMap[com]});
+    });
+    await sleep(250);
+  }
+  return out;
+}
+"""
+
+
+def fetch_units(unv_cd: str, unv_name: str, syr: str = "2027", headless: bool = True) -> list[dict]:
+    """대학 → 모든 (전형×모집단위) 파라미터 tuple. Playwright headless로 세션 워밍.
+
+    반환: [{**PARAM_KEYS, '전형명', '학과명'}, ...]
+    """
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=headless)
+        page = browser.new_page()
+        page.goto(f"{VIEW_URL}?menuId=PCPRCINF2000", wait_until="domcontentloaded")
+        page.wait_for_timeout(1500)
+        # 대학명 검색 → 세션에 대학 선택 등록 + 목록 로드 (실 브라우저 흐름 그대로)
+        box = page.get_by_placeholder(re.compile("대학명"))
+        box.click()
+        box.fill(unv_name)
+        box.press("Enter")
+        page.wait_for_timeout(3000)
+        raw = page.evaluate(_HARVEST_JS, unv_cd)
+        browser.close()
+
+    units = []
+    for r in raw:
+        args = r["args"]
+        if len(args) < len(PARAM_KEYS):
+            continue
+        rec = {k: args[i] for i, k in enumerate(PARAM_KEYS)}
+        rec["전형명"] = r.get("jh", "")
+        rec["학과명"] = r.get("dept", "")
+        units.append(rec)
+    return units
