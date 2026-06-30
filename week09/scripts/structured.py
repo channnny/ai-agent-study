@@ -707,7 +707,7 @@ def main():
     records = crawl_university(units, 대학명)
     elapsed = _time.time() - t0
 
-    write_structured(records, OUT / "대학별" / f"{대학명}_전형정보.xlsx")
+    write_structured(records, OUT / "대학별" / f"{대학명}.xlsx")
     write_report(records, OUT / "크롤링_리포트.xlsx", elapsed)
     m, s = divmod(int(elapsed), 60)
     print(f"⏱ {m}분 {s}초")
