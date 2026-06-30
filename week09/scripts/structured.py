@@ -34,6 +34,7 @@ LEFT   = Alignment(horizontal="left",   vertical="center", wrap_text=True)
 # ── 첨부 정합 헤더 스키마 (대, 중, 소) ─────────────────────────
 # 순서가 첨부 열 순서와 일치해야 한다.
 _IDENT_HEADERS = [
+    (None, None, "adiga_selcntnm"),
     (None, None, "학년도"),
     (None, None, "대학명"),
     (None, None, "대학코드"),
@@ -42,6 +43,7 @@ _IDENT_HEADERS = [
     (None, None, "모집단위명"),
     (None, None, "모집단위코드"),
 ]
+N_IDENT = len(_IDENT_HEADERS)  # 8
 
 # 전형일정및방법 (39열) — 식별 7 + 이하 39 = 46열
 # 첨부 가천대 (1).xlsx 스키마와 열 순서 완전 일치 (H=8 ~ AT=46)
@@ -53,8 +55,7 @@ _SCHED_HEADERS = [
     ("전형일정", "대학별고사일정", "면접구술"),        # K=11
     ("전형일정", "대학별고사일정", "실기"),            # L=12
     ("전형일정", "합격자발표일",  "합격자발표일"),     # M=13 (row2~3 병합)
-    # 전형 요소별 반영비율 (N~AA = 14열)
-    ("전형 요소별 반영비율", None,          None),         # N=14 빈 열(대제목 병합 시작)
+    # 전형 요소별 반영비율 (선발모형부터 — 빈 열 제거)
     ("전형 요소별 반영비율", "선발모형",    "선발모형"),    # O=15
     ("전형 요소별 반영비율", "선발방법",    "선발방법"),    # P=16
     ("전형 요소별 반영비율", "선발비율(%)", "선발비율(%)"), # Q=17
@@ -360,12 +361,15 @@ def build_row(u: dict, 대학명: str, hs: str, he: str, sheet: str) -> tuple[li
     """(전형일정및방법 | 전형요소) 한 행 생성.
     returns (headers: list[(대,중,소)], values: list[str])
     """
-    # 식별 7열
+    # 식별 8열 (adiga_selcntnm 선두)
     전형명 = u.get("전형명", "").split(">")[-1].strip()
     전형코드 = f"{u['slcnGroupCd']}-{u['lclsfAftCd']}-{u['slcnTypeCd']}-{u['slcnCd']}"
+    # adiga_selcntnm = 어디가 식별코드 조합 (데이터랩스 정합)
+    selcntnm = (f"{u['unvCd']}_{u['comScsbjtCd']}_{u['slcnGroupCd']}-{u['lclsfAftCd']}-"
+                f"{u['slcnTypeCd']}-{u['slcnCd']}-{u['rcmtMmntCd']}-{u['ruSn']}")
     모집단위명 = B._moonit(hs) or u.get("학과명", "")
     ident_vals = [
-        SYR, 대학명, u["unvCd"], 전형명, 전형코드, 모집단위명, u["comScsbjtCd"],
+        selcntnm, SYR, 대학명, u["unvCd"], 전형명, 전형코드, 모집단위명, u["comScsbjtCd"],
     ]
 
     if sheet == "전형일정및방법":
@@ -409,8 +413,7 @@ def build_row(u: dict, 대학명: str, hs: str, he: str, sheet: str) -> tuple[li
             _first(d1, "인터넷"), _first(d1, "현장"),
             _first(d1, "논술등필답"), _first(d1, "면접구술"), _first(d1, "실기"),
             _first(d1, "합격자발표일"),
-            # 전형요소별 (N~AA = 14열): N열은 빈 값(헤더 전용)
-            "",  # N=14 빈 열
+            # 전형요소별 (선발모형부터 — 빈 열 제거)
             _first(d2, "선발모형"), _first(d2, "선발방법"), _first(d2, "선발비율(%)"),
             _first(d2, "학생부"), _first(d2, "수능"), _first(d2, "면접"),
             _first(d2, "논술"), _first(d2, "적성"), _first(d2, "1단계성적"),
@@ -505,8 +508,8 @@ def _write_headers(ws, headers: list[tuple]):
         cell = ws.cell(row=3, column=i, value=sub)
         _apply_style(cell)
 
-    # 식별 7열: row1~3 세로병합 (소제목만 남김)
-    for i in range(1, 8):
+    # 식별열: row1~3 세로병합 (소제목만 남김)
+    for i in range(1, N_IDENT + 1):
         ws.cell(row=1, column=i).value = None
         ws.cell(row=2, column=i).value = None
         ws.cell(row=3, column=i).value = headers[i - 1][2]
@@ -516,9 +519,9 @@ def _write_headers(ws, headers: list[tuple]):
             _apply_style(ws.cell(row=r, column=i))
 
     # 대제목(row1) 가로 병합
-    _merge_row(ws, 1, headers, key_fn=lambda h: h[0], start_col=8)
+    _merge_row(ws, 1, headers, key_fn=lambda h: h[0], start_col=N_IDENT + 1)
     # 중제목(row2) 가로 병합 (같은 대제목 그룹 내에서)
-    _merge_row(ws, 2, headers, key_fn=lambda h: (h[0], h[1]), start_col=8)
+    _merge_row(ws, 2, headers, key_fn=lambda h: (h[0], h[1]), start_col=N_IDENT + 1)
 
     # 합격자발표일(소제목 없음): row2~3 세로병합
     _fix_single_row_span(ws, headers)
@@ -547,7 +550,7 @@ def _merge_row(ws, row: int, headers: list[tuple], key_fn, start_col: int = 8):
 def _fix_single_row_span(ws, headers: list[tuple]):
     """중제목이 소제목과 동일하거나 소제목이 없는 열 → row2~3 세로병합."""
     for i, (da, mid, sub) in enumerate(headers, start=1):
-        if i < 8:
+        if i < N_IDENT + 1:
             continue
         # 소제목이 없거나 중/소 동일하면 row2~3 병합
         if not sub or sub == mid:
@@ -557,6 +560,12 @@ def _fix_single_row_span(ws, headers: list[tuple]):
                 ws.merge_cells(start_row=2, start_column=i, end_row=3, end_column=i)
             except Exception:
                 pass
+
+
+def _filter(ws, ncols: int, ndata: int):
+    """소제목 행(row3)에 autofilter — 컬럼별 필터 드롭다운."""
+    last_col = get_column_letter(ncols)
+    ws.auto_filter.ref = f"A3:{last_col}{3 + ndata}"
 
 
 def write_structured(units: list[dict], 대학명: str, out_path: str | Path):
@@ -597,6 +606,7 @@ def write_structured(units: list[dict], 대학명: str, out_path: str | Path):
                 cell.border = BORDER
         ws1.freeze_panes = "A4"
         B.autofit(ws1)
+        _filter(ws1, len(sched_headers), len(all_rows_sched))
 
     # ── 전형요소 ────────────────────────────────────────────────
     all_rows_elem = []
@@ -617,6 +627,7 @@ def write_structured(units: list[dict], 대학명: str, out_path: str | Path):
                 cell.border = BORDER
         ws2.freeze_panes = "A4"
         B.autofit(ws2)
+        _filter(ws2, len(elem_headers), len(all_rows_elem))
 
     # ── 열람(전형별) ─────────────────────────────────────────────
     B.render_blocks(ws3, units, 대학명, pages=pages_cache)
