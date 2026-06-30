@@ -36,6 +36,7 @@ def _note_failure():
 def _request(method, url, **kw):
     if _BLOCK.is_set():
         raise RuntimeError("서킷브레이커 작동 중 — 크롤 중단(차단 의심)")
+    sess = kw.pop("session", None) or requests
     kw.setdefault("headers", {})
     kw["headers"] = {**BROWSER_HEADERS, "Connection": "close", **kw["headers"]}
     kw.setdefault("timeout", (5, 15))
@@ -43,7 +44,7 @@ def _request(method, url, **kw):
     for attempt in range(3):
         try:
             time.sleep(random.uniform(*DELAY_RANGE))
-            r = requests.request(method, url, **kw)
+            r = sess.request(method, url, **kw)
             if r.status_code == 429:
                 time.sleep(min(_retry_after(r) or 5.0 * (attempt + 1), 60))
                 last = requests.HTTPError("429 Too Many Requests"); continue
