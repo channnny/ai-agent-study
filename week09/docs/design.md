@@ -24,6 +24,18 @@
 
 전형별 파라미터: `unvCd·comScsbjtCd·slcnGroupCd·rcmtMmntCd·ruCd·ruSn·lclsfAftCd·slcnTypeCd·slcnCd·searchSyr=2027`.
 
+## 정정 (2026-06-30, 구현 완료 기준) — 아래 §3 일부 갱신
+
+- **열거는 requests 불가, Playwright 필수**: 어디가 목록(`admssUnivAjax`→`admssUnivDetailLstAjax`)은
+  페이지 JS가 만드는 **서버측 세션 상태**를 요구. 동일 본문·CSRF·쿠키로도 빈 결과(브라우저 in-page
+  fetch는 동일 요청에 200/데이터 반환 — 세션 바인딩 확정). → `enumerate_admissions.fetch_units()`가
+  **Playwright headless**로 세션 워밍 후 열거. (§3.1의 requests 3단계는 폐기.)
+- **granularity = 전형×모집단위 전체** (사용자 결정). `comScsbjtCd = 학과(모집단위) 코드`.
+  열거: 대학검색 → `admssUnivAjax` 페이지네이션으로 학과(comScsbjtCd) 수집 → 학과별 `LstAjax` →
+  전형 sub-행(`fnDetailPage` 9인자) = (전형×모집단위). 가천대 = **71 모집단위 × 전형 = 761 tuple**.
+- **detail/element는 requests GET(무세션)** 그대로 — 풀 파라미터 URL로 조회. 대량 크롤은 여기서.
+- **이번 주 스코프 = 가천대 단독** (5개 대학 아님). 검증: 761행 전형일정 / 2556행 전형요소, 샘플 포맷 일치.
+
 ## 3. 정찰 결과 (2026-06-30, spike 확정)
 
 - **전형일정및방법**(`admssUnivDetail.do`): GET 서버렌더, 표 5개
