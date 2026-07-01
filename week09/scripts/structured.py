@@ -591,6 +591,35 @@ def _crawl_one(u: dict, 대학명: str) -> dict:
     return rec
 
 
+PLACEHOLDER = "대학에서 입력된 정보가 없습니다."
+
+
+def _group_ranges(headers):
+    """식별열 이후 대제목(원본 표)별 연속 컬럼 범위 [(start_col, end_col)] (1-based)."""
+    ranges, i, n = [], N_IDENT, len(headers)
+    while i < n:
+        da = headers[i][0]
+        j = i + 1
+        while j < n and headers[j][0] == da:
+            j += 1
+        ranges.append((i + 1, j))
+        i = j
+    return ranges
+
+
+def _merge_no_data(ws, headers, n_data):
+    """한 그룹(원본 표)이 '대학에서 입력된 정보가 없습니다.'뿐이면 그 행에서 그룹 셀 병합 + 문구 중앙."""
+    for gs, ge in _group_ranges(headers):
+        for r in range(4, 4 + n_data):
+            if any(PLACEHOLDER in str(ws.cell(r, c).value or "") for c in range(gs, ge + 1)):
+                for c in range(gs, ge + 1):
+                    ws.cell(r, c).value = None
+                ws.cell(r, gs).value = PLACEHOLDER
+                if ge > gs:
+                    ws.merge_cells(start_row=r, start_column=gs, end_row=r, end_column=ge)
+                ws.cell(r, gs).alignment = CENTER
+
+
 def _write_data_sheet(ws, headers, rows):
     _write_headers(ws, headers)
     for ri, row in enumerate(rows, start=4):
@@ -598,6 +627,7 @@ def _write_data_sheet(ws, headers, rows):
             cell = ws.cell(row=ri, column=ci, value=val)
             cell.alignment = LEFT
             cell.border = BORDER
+    _merge_no_data(ws, headers, len(rows))
     ws.freeze_panes = "A4"
     B.autofit(ws)
     _filter(ws, len(headers), len(rows))
