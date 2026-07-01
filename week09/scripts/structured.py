@@ -724,10 +724,17 @@ def write_report(records: list[dict], out_path: str | Path, elapsed: float = 0.0
     print(f"  리포트: {out_path}  | 시도 {n} / 성공 {n_ok} / 실패 {n_err}")
 
 
+import time as _time
+
+
+def _log(msg: str):
+    """타임스탬프 진행 로그(stdout). 파일 기록은 실행 시 리다이렉트로."""
+    print(f"[{_time.strftime('%H:%M:%S')}] {msg}", flush=True)
+
+
 def crawl_university(units: list[dict], 대학명: str) -> list[dict]:
     """대학 전체 (전형×모집단위) 병렬 크롤 → 레코드 목록."""
     from concurrent.futures import ThreadPoolExecutor, as_completed
-    print(f"  · {대학명}: {len(units)}건 크롤 시작 (동시 {WORKERS})")
     records, done = [], [0]
     with ThreadPoolExecutor(max_workers=WORKERS) as ex:
         futs = [ex.submit(_crawl_one, u, 대학명) for u in units]
@@ -735,31 +742,84 @@ def crawl_university(units: list[dict], 대학명: str) -> list[dict]:
             records.append(fut.result())
             done[0] += 1
             if done[0] % 100 == 0:
-                print(f"    … {done[0]}/{len(units)}", flush=True)
+                _log(f"    … {대학명} {done[0]}/{len(units)}")
     return records
+
+
+def _univ_list(ROOT: Path) -> list[tuple]:
+    """target_universities.csv → [(대학코드, 대학명)]."""
+    import csv
+    f = ROOT / "week03" / "input" / "target_universities.csv"
+    with open(f, encoding="utf-8") as fh:
+        return [(r["unv_cd"].strip(), r["univ_name"].strip()) for r in csv.DictReader(fh)]
+
+
+def _enum_cached(OUT: Path, code: str, name: str) -> list[dict]:
+    """대학 → 전형×모집단위 tuple. enum/<코드>.json 캐시(있으면 재사용)."""
+    import json
+    import re
+    cache = OUT / "enum" / f"{code}.json"
+    if cache.exists():
+        return json.loads(cache.read_text(encoding="utf-8"))
+    search = re.split(r"[\[\(]", name)[0].strip()  # 캠퍼스 접미사 제거해 검색
+    units = E.fetch_units(code, search, syr=SYR)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(json.dumps(units, ensure_ascii=False), encoding="utf-8")
+    return units
+
+
+def run_all(OUT: Path, ROOT: Path):
+    """전체 대학 크롤 — 대학별 파일 이미 있으면 스킵(재개). 통합 리포트."""
+    univs = _univ_list(ROOT)
+    _log(f"=== 전체 {len(univs)}개 대학 전형정보 크롤 시작 (동시 {WORKERS}) ===")
+    all_records, t0 = [], _time.time()
+    for i, (code, name) in enumerate(univs, 1):
+        out_xlsx = OUT / "대학별" / f"{name}.xlsx"
+        if out_xlsx.exists():
+            _log(f"[{i}/{len(univs)}] {name} — 이미 완료, 스킵")
+            continue
+        try:
+            _log(f"[{i}/{len(univs)}] {name} — 열거(Playwright)…")
+            units = _enum_cached(OUT, code, name)
+            if not units:
+                _log(f"[{i}/{len(univs)}] {name} — 전형 0건(데이터 없음), 스킵")
+                continue
+            _log(f"[{i}/{len(univs)}] {name} — {len(units)}건 detail 크롤…")
+            recs = crawl_university(units, name)
+            write_structured(recs, out_xlsx)
+            all_records += recs
+            nok = sum(r["status"] == "ok" for r in recs)
+            el = int(_time.time() - t0)
+            _log(f"[{i}/{len(univs)}] {name} ✓ {nok}/{len(recs)} | 누적 {len(all_records)} | 경과 {el//3600}h{el%3600//60}m")
+        except Exception as e:
+            _log(f"[{i}/{len(univs)}] {name} ✗ {type(e).__name__}: {e}")
+    write_report(all_records, OUT / "크롤링_리포트.xlsx", _time.time() - t0)
+    el = int(_time.time() - t0)
+    _log(f"=== 전체 완료 — {len(all_records)}건 | ⏱ {el//3600}시간 {el%3600//60}분 ===")
 
 
 def main():
     import json
-    import time as _time
     ROOT = Path(__file__).resolve().parents[2]
     OUT = ROOT / "week09" / "output"
-    sample = "--sample" in sys.argv
+
+    if "--all" in sys.argv:   # 전체 대학
+        run_all(OUT, ROOT)
+        return
+
+    # 가천대 단독 (기본) / --sample
     with open(OUT / "enum" / "가천대.json", encoding="utf-8") as f:
         units = json.load(f)
-    if sample:
+    if "--sample" in sys.argv:
         units = [u for u in units if u.get("학과명", "").startswith("AI인문")][:5]
     대학명 = "가천대학교[본교]"
-
-    print(f"=== 전형정보 구조화 크롤 — {대학명} {len(units)}건 ===")
+    _log(f"=== 전형정보 구조화 크롤 — {대학명} {len(units)}건 ===")
     t0 = _time.time()
     records = crawl_university(units, 대학명)
-    elapsed = _time.time() - t0
-
     write_structured(records, OUT / "대학별" / f"{대학명}.xlsx")
-    write_report(records, OUT / "크롤링_리포트.xlsx", elapsed)
-    m, s = divmod(int(elapsed), 60)
-    print(f"⏱ {m}분 {s}초")
+    write_report(records, OUT / "크롤링_리포트.xlsx", _time.time() - t0)
+    m, s = divmod(int(_time.time() - t0), 60)
+    _log(f"⏱ {m}분 {s}초")
 
 
 if __name__ == "__main__":
