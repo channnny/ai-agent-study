@@ -83,14 +83,11 @@ _SCHED_HEADERS = [
     ("최저학력기준", "국어",    "과목명"),                    # AK=37
     ("최저학력기준", "수학",    "선택반영"),                  # AL=38
     ("최저학력기준", "수학",    "과목명"),                    # AM=39
-    ("최저학력기준", "영어",    "선택반영"),                  # AN=40
-    ("최저학력기준", "영어",    "과목명"),                    # AO=41
+    ("최저학력기준", "영어",    "영어"),                      # AN=40 (단일 — 영어는 과목명 없음)
     ("최저학력기준", "탐구영역", "선택반영"),                 # AP=42
     ("최저학력기준", "탐구영역", "과목명"),                   # AQ=43
-    ("최저학력기준", "제2외국어/한문", "선택반영"),           # AR=44
-    ("최저학력기준", "제2외국어/한문", "과목명"),             # AS=45
-    ("최저학력기준", "한국사",  "선택반영"),                  # AT=46
-    ("최저학력기준", "한국사",  "과목명"),                    # AU=47
+    ("최저학력기준", "제2외국어/한문", "제2외국어/한문"),     # 단일 — 과목명 없음
+    ("최저학력기준", "한국사",  "한국사"),                    # 단일 — 과목명 없음
     ("최저학력기준", "반영영역수", "반영영역수"),             # AV=48
     ("최저학력기준", "세부내용", "세부내용"),                 # AW=49
 ]
@@ -429,10 +426,10 @@ def build_row(u: dict, 대학명: str, hs: str, he: str, sheet: str) -> tuple[li
             _first(d4, "학생부"),                                        # AI=35
             _first(d4, "국어_선택반영"), _first(d4, "국어_과목명"),      # AJ=36, AK=37
             _first(d4, "수학_선택반영"), _first(d4, "수학_과목명"),      # AL=38, AM=39
-            _first(d4, "영어_선택반영"), _first(d4, "영어_과목명"),      # AN=40, AO=41
+            _first(d4, "영어_선택반영"),                                # AN=40 (단일)
             _first(d4, "탐구영역_선택반영"), _first(d4, "탐구영역_과목명"),  # AP=42, AQ=43
-            _first(d4, "제2외국어/한문_선택반영"), _first(d4, "제2외국어/한문_과목명"),  # AR=44, AS=45
-            _first(d4, "한국사_선택반영"), _first(d4, "한국사_과목명"),  # AT=46, AU=47
+            _first(d4, "제2외국어/한문_선택반영"),                      # 단일
+            _first(d4, "한국사_선택반영"),                              # 단일
             _first(d4, "반영영역수"), _first(d4, "세부내용"),            # AV=48, AW=49
         ]
 
@@ -620,6 +617,26 @@ def _merge_no_data(ws, headers, n_data):
                 ws.cell(r, gs).alignment = CENTER
 
 
+def _autofit_unmerged(ws):
+    """열 너비 = 가로병합 안 된 셀만 기준. 병합된 대제목·플레이스홀더가 열을
+    쓸데없이 넓히지 않게(병합 텍스트는 병합 범위 위로 오버플로 표시)."""
+    hmerges = [(m.min_row, m.max_row, m.min_col, m.max_col)
+               for m in ws.merged_cells.ranges if m.max_col > m.min_col]
+
+    def in_hmerge(r, c):
+        return any(r1 <= r <= r2 and c1 <= c <= c2 for (r1, r2, c1, c2) in hmerges)
+
+    widths = {}
+    for row in ws.iter_rows():
+        for cell in row:
+            if cell.value is None or in_hmerge(cell.row, cell.column):
+                continue
+            longest = max((B._disp(line) for line in str(cell.value).split("\n")), default=0)
+            widths[cell.column] = max(widths.get(cell.column, 0), longest)
+    for c, w in widths.items():
+        ws.column_dimensions[get_column_letter(c)].width = min(max(w + 2, 5), 52)
+
+
 def _write_data_sheet(ws, headers, rows):
     _write_headers(ws, headers)
     for ri, row in enumerate(rows, start=4):
@@ -629,7 +646,7 @@ def _write_data_sheet(ws, headers, rows):
             cell.border = BORDER
     _merge_no_data(ws, headers, len(rows))
     ws.freeze_panes = "A4"
-    B.autofit(ws)
+    _autofit_unmerged(ws)
     _filter(ws, len(headers), len(rows))
 
 
