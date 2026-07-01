@@ -19,6 +19,7 @@ from openpyxl.utils import get_column_letter
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import net               # noqa: E402
 import write_blocks as B  # noqa: E402
+import enumerate_admissions as E  # noqa: E402
 
 SYR = "2027"
 
