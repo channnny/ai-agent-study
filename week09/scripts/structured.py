@@ -93,9 +93,38 @@ _SCHED_HEADERS = [
     ("최저학력기준", "세부내용", "세부내용"),                 # AW=49
 ]
 
-# 전형요소 (19열) — 식별 7 + 이하 19 = 26열
+# 전형요소 (47열) — 식별 8 + 이하 47 = 55열 (첨부 가천대 (1)_양식수정.xlsx 스키마 일치)
 _ELEM_HEADERS = [
-    # 학생부 학년별/요소별 반영비율
+    # 수능 영역별 반영비율 (I~S)
+    ("수능 영역별 반영비율", "활용지표", "활용지표"),
+    ("수능 영역별 반영비율", "영역수", "영역수"),
+    ("수능 영역별 반영비율", "국어", "반영비율"),
+    ("수능 영역별 반영비율", "국어", "선택과목"),
+    ("수능 영역별 반영비율", "수학", "반영비율"),
+    ("수능 영역별 반영비율", "수학", "선택과목"),
+    ("수능 영역별 반영비율", "영어", "영어"),
+    ("수능 영역별 반영비율", "탐구영역", "반영비율"),
+    ("수능 영역별 반영비율", "탐구영역", "선택과목"),
+    ("수능 영역별 반영비율", "제2외국어/한문", "제2외국어/한문"),
+    ("수능 영역별 반영비율", "한국사", "한국사"),
+    # 수능 영역별 등급기준 (T~W) — 다중행(1~9등급) → 컬럼별 ' / ' join
+    ("수능 영역별 등급기준", "구분", "구분"),
+    ("수능 영역별 등급기준", "영어", "영어"),
+    ("수능 영역별 등급기준", "제2외국어/한문", "제2외국어/한문"),
+    ("수능 영역별 등급기준", "한국사", "한국사"),
+    # 수능 가(감)산부여 (X~AC)
+    ("수능 가(감)산부여", "국어", "국어"),
+    ("수능 가(감)산부여", "수학", "수학"),
+    ("수능 가(감)산부여", "영어", "영어"),
+    ("수능 가(감)산부여", "탐구", "탐구"),
+    ("수능 가(감)산부여", "제2외국어/한문", "제2외국어/한문"),
+    ("수능 가(감)산부여", "한국사", "한국사"),
+    # 수능 탐구영역 반영사항 (AD~AE)
+    ("수능 탐구영역 반영사항", "반영과목수", "반영과목수"),
+    ("수능 탐구영역 반영사항", "지정과목", "지정과목"),
+    # 비고 (AF)
+    ("비고", "비고", "비고"),
+    # 학생부 학년별/요소별 반영비율 (AG~AR)
     ("학생부 학년별/요소별 반영비율", "적용대상 졸업년도",     "적용대상 졸업년도"),
     ("학생부 학년별/요소별 반영비율", "학년별 반영비율(100%)", "학년공통"),
     ("학생부 학년별/요소별 반영비율", "학년별 반영비율(100%)", "공통비율"),
@@ -108,7 +137,12 @@ _ELEM_HEADERS = [
     ("학생부 학년별/요소별 반영비율", "요소별 반영비율(100%)", "활동"),
     ("학생부 학년별/요소별 반영비율", "요소별 반영비율(100%)", "봉사활동"),
     ("학생부 학년별/요소별 반영비율", "요소별 반영비율(100%)", "기타"),
-    # 학생부 교과성적 반영방법
+    # 서류 (AS~AV)
+    ("서류", "학교생활기록부", "학교생활기록부"),
+    ("서류", "특기자실적", "특기자실적"),
+    ("서류", "기타", "기타"),
+    ("서류", "기타내용", "기타내용"),
+    # 학생부 교과성적 반영방법 (AW~BC)
     ("학생부 교과성적 반영방법", "학년",               "학년"),
     ("학생부 교과성적 반영방법", "반영교과",           "교과"),
     ("학생부 교과성적 반영방법", "반영교과",           "공통과목"),
@@ -278,6 +312,54 @@ def extract_table_data(table, cap_name: str, schema_keys: list[str]) -> dict[str
                 if k in result:
                     result[k].append(cells.get((dr, i), "") or "")
 
+    elif cap_name == "수능 영역별 반영비율":
+        # ncols=11: 활용지표,영역수,국어(반영비율/선택과목),수학(반영비율/선택과목),
+        #           영어,탐구영역(반영비율/선택과목),제2외국어/한문,한국사
+        key_map = [
+            "활용지표", "영역수",
+            "국어_반영비율", "국어_선택과목",
+            "수학_반영비율", "수학_선택과목",
+            "영어",
+            "탐구영역_반영비율", "탐구영역_선택과목",
+            "제2외국어/한문", "한국사",
+        ]
+        for dr in data_rows:
+            for i, k in enumerate(key_map):
+                if k in result:
+                    result[k].append(cells.get((dr, i), "") or "")
+
+    elif cap_name == "수능 영역별 등급기준":
+        # ncols=4: 구분,영어,제2외국어/한문,한국사 — 데이터 9행(1~9등급) 컬럼별 ' / ' join
+        key_map = ["구분", "영어", "제2외국어/한문", "한국사"]
+        for i, k in enumerate(key_map):
+            if k in result:
+                vals = [cells.get((dr, i), "") or "" for dr in data_rows]
+                result[k].append(" / ".join(v for v in vals if v))
+
+    elif cap_name == "수능 가(감)산부여":
+        # ncols=6: 국어,수학,영어,탐구,제2외국어/한문,한국사
+        key_map = ["국어", "수학", "영어", "탐구", "제2외국어/한문", "한국사"]
+        for dr in data_rows:
+            for i, k in enumerate(key_map):
+                if k in result:
+                    result[k].append(cells.get((dr, i), "") or "")
+
+    elif cap_name == "수능 탐구영역 반영사항":
+        # ncols=2: 반영과목수,지정과목
+        key_map = ["반영과목수", "지정과목"]
+        for dr in data_rows:
+            for i, k in enumerate(key_map):
+                if k in result:
+                    result[k].append(cells.get((dr, i), "") or "")
+
+    elif cap_name == "서류":
+        # ncols=4: 학교생활기록부,특기자실적,기타,기타내용
+        key_map = ["학교생활기록부", "특기자실적", "기타", "기타내용"]
+        for dr in data_rows:
+            for i, k in enumerate(key_map):
+                if k in result:
+                    result[k].append(cells.get((dr, i), "") or "")
+
     elif cap_name == "학생부 교과성적 반영방법":
         # ncols=6: 학년, 교과, 공통과목, 일반선택, 진로선택, 점수산출활용지표
         # 마지막에 '반영교과 및 반영방법' 섹션(th행 + 데이터1행) 처리
@@ -348,6 +430,13 @@ _SCHED_KEYS = [
 ]
 # 전형요소 — 원본표 컬럼 소제목
 _ELEM_KEYS = [
+    "활용지표", "영역수",
+    "국어_반영비율", "국어_선택과목", "수학_반영비율", "수학_선택과목", "영어",
+    "탐구영역_반영비율", "탐구영역_선택과목", "제2외국어/한문", "한국사",
+    "구분", "영어", "제2외국어/한문", "한국사",
+    "국어", "수학", "영어", "탐구", "제2외국어/한문", "한국사",
+    "반영과목수", "지정과목",
+    "학교생활기록부", "특기자실적", "기타", "기타내용",
     "적용대상 졸업년도",
     "학년공통", "공통비율", "1학년", "2학년", "3학년",
     "교과", "출결", "자격", "활동", "봉사활동", "기타",
@@ -441,6 +530,35 @@ def build_row(u: dict, 대학명: str, hs: str, he: str, sheet: str) -> tuple[li
             for cap, tbl in B._tables_from(he, section_only=True)
         }
 
+        def _first(d, k):
+            return (d.get(k) or [""])[0]
+
+        # 수능 영역별 반영비율
+        e_keys_0a = ["활용지표", "영역수",
+                     "국어_반영비율", "국어_선택과목", "수학_반영비율", "수학_선택과목", "영어",
+                     "탐구영역_반영비율", "탐구영역_선택과목", "제2외국어/한문", "한국사"]
+        cap0a = elem_tables.get("수능 영역별 반영비율")
+        d0a = extract_table_data(cap0a, "수능 영역별 반영비율", e_keys_0a) \
+            if cap0a is not None else {k: [""] for k in e_keys_0a}
+
+        # 수능 영역별 등급기준 (다중행 ' / ' join)
+        e_keys_0b = ["구분", "영어", "제2외국어/한문", "한국사"]
+        cap0b = elem_tables.get("수능 영역별 등급기준")
+        d0b = extract_table_data(cap0b, "수능 영역별 등급기준", e_keys_0b) \
+            if cap0b is not None else {k: [""] for k in e_keys_0b}
+
+        # 수능 가(감)산부여
+        e_keys_0c = ["국어", "수학", "영어", "탐구", "제2외국어/한문", "한국사"]
+        cap0c = elem_tables.get("수능 가(감)산부여")
+        d0c = extract_table_data(cap0c, "수능 가(감)산부여", e_keys_0c) \
+            if cap0c is not None else {k: [""] for k in e_keys_0c}
+
+        # 수능 탐구영역 반영사항
+        e_keys_0d = ["반영과목수", "지정과목"]
+        cap0d = elem_tables.get("수능 탐구영역 반영사항")
+        d0d = extract_table_data(cap0d, "수능 탐구영역 반영사항", e_keys_0d) \
+            if cap0d is not None else {k: [""] for k in e_keys_0d}
+
         # 학생부 학년별/요소별 반영비율
         e_keys_1 = ["적용대상 졸업년도",
                     "학년공통", "공통비율", "1학년", "2학년", "3학년",
@@ -450,6 +568,12 @@ def build_row(u: dict, 대학명: str, hs: str, he: str, sheet: str) -> tuple[li
         d1 = extract_table_data(elem_tables[cap1], "학생부 학년별/요소별 반영비율", e_keys_1) \
             if cap1 else {k: [""] for k in e_keys_1}
 
+        # 서류
+        e_keys_2s = ["학교생활기록부", "특기자실적", "기타", "기타내용"]
+        cap2s = elem_tables.get("서류")
+        d2s = extract_table_data(cap2s, "서류", e_keys_2s) \
+            if cap2s is not None else {k: [""] for k in e_keys_2s}
+
         # 학생부 교과성적 반영방법
         e_keys_2 = ["학년", "교과", "공통과목", "일반선택", "진로선택",
                     "점수산출 활용지표", "반영교과 및 반영방법"]
@@ -457,15 +581,34 @@ def build_row(u: dict, 대학명: str, hs: str, he: str, sheet: str) -> tuple[li
         d2 = extract_table_data(elem_tables[cap2], "학생부 교과성적 반영방법", e_keys_2) \
             if cap2 else {k: [""] for k in e_keys_2}
 
-        def _first(d, k):
-            return (d.get(k) or [""])[0]
-
         values = list(ident_vals) + [
+            # 수능 영역별 반영비율 (I~S = 11열)
+            _first(d0a, "활용지표"), _first(d0a, "영역수"),
+            _first(d0a, "국어_반영비율"), _first(d0a, "국어_선택과목"),
+            _first(d0a, "수학_반영비율"), _first(d0a, "수학_선택과목"),
+            _first(d0a, "영어"),
+            _first(d0a, "탐구영역_반영비율"), _first(d0a, "탐구영역_선택과목"),
+            _first(d0a, "제2외국어/한문"), _first(d0a, "한국사"),
+            # 수능 영역별 등급기준 (T~W = 4열)
+            _first(d0b, "구분"), _first(d0b, "영어"),
+            _first(d0b, "제2외국어/한문"), _first(d0b, "한국사"),
+            # 수능 가(감)산부여 (X~AC = 6열)
+            _first(d0c, "국어"), _first(d0c, "수학"), _first(d0c, "영어"),
+            _first(d0c, "탐구"), _first(d0c, "제2외국어/한문"), _first(d0c, "한국사"),
+            # 수능 탐구영역 반영사항 (AD~AE = 2열)
+            _first(d0d, "반영과목수"), _first(d0d, "지정과목"),
+            # 비고 (AF = 1열) — 원본에 대응 표/필드 없음, 항상 빈칸
+            "",
+            # 학생부 학년별/요소별 반영비율 (AG~AR = 12열)
             _first(d1, "적용대상 졸업년도"),
             _first(d1, "학년공통"), _first(d1, "공통비율"),
             _first(d1, "1학년"), _first(d1, "2학년"), _first(d1, "3학년"),
             _first(d1, "교과"), _first(d1, "출결"), _first(d1, "자격"),
             _first(d1, "활동"), _first(d1, "봉사활동"), _first(d1, "기타"),
+            # 서류 (AS~AV = 4열)
+            _first(d2s, "학교생활기록부"), _first(d2s, "특기자실적"),
+            _first(d2s, "기타"), _first(d2s, "기타내용"),
+            # 학생부 교과성적 반영방법 (AW~BC = 7열)
             _first(d2, "학년"),
             _first(d2, "교과"), _first(d2, "공통과목"),
             _first(d2, "일반선택"), _first(d2, "진로선택"),
