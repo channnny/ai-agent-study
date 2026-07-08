@@ -764,13 +764,16 @@ WORKERS = 6
 
 def _crawl_one(u: dict, 대학명: str) -> dict:
     """단일 (전형×모집단위) 크롤+빌드. 상태/사유 포함 레코드 반환."""
-    # 원본 전형구분(첫 세그먼트)이 '기타'인지 — 재외국민/외국인/북한이탈 등(피드백#6).
-    # 정상 수집되지만 사이트 원본상 세부 데이터가 희소해 리포트에서 별도 집계.
+    # 원본 전형구분(첫 세그먼트)이 '기타'면 — 재외국민/외국인/북한이탈/해외이수자 등(피드백#6).
+    # **출력에서 제외**(수집 안 함)하고 리포트엔 '의도적 미수집(기타)'로 별도 집계.
     is_gita = u.get("전형명", "").split(">")[0].strip() == "기타"
     rec = {"unvCd": u["unvCd"], "대학명": 대학명,
            "전형명": u.get("전형명", "").split(">")[-1].strip(),
            "학과명": u.get("학과명", ""), "status": "ok", "error": "",
            "sched": None, "elem": None, "has_elem": False, "is_gita": is_gita}
+    if is_gita:                     # 크롤 자체를 건너뜀(시간 절약) + 출력 제외
+        rec["status"] = "기타제외"
+        return rec
     try:
         hs, he = B.fetch_pages(u)
         _, rec["sched"] = build_row(u, 대학명, hs, he, "전형일정및방법")
@@ -842,7 +845,7 @@ def write_report(records: list[dict], out_path: str | Path, elapsed: float = 0.0
     n_elem = sum(1 for r in records if r["status"] == "ok" and r["has_elem"])
     # '기타' 유형(재외국민/외국인/북한이탈 등) — 정상 수집되나 원본 데이터 자체가
     # 희소한 경우가 많아 실패와 구분해 별도 집계(피드백#6, 실패로 분류하지 않음).
-    n_gita = sum(1 for r in records if r["status"] == "ok" and r.get("is_gita"))
+    n_gita = sum(1 for r in records if r["status"] == "기타제외")
     m, s = divmod(int(elapsed), 60)
 
     wb = Workbook()
@@ -852,9 +855,9 @@ def write_report(records: list[dict], out_path: str | Path, elapsed: float = 0.0
         ("크롤링 시도 (전형×모집단위)", f"{n}건"),
         ("성공", f"{n_ok}건"),
         ("실패", f"{n_err}건"),
-        ("성공률", f"{(n_ok/n*100 if n else 0):.1f}%"),
+        ("성공률", f"{(n_ok/(n_ok+n_err)*100 if (n_ok+n_err) else 0):.1f}%"),
         ("전형요소 보유 전형", f"{n_elem}건"),
-        ("'기타' 유형 전형(재외국민/외국인/북한이탈 등 — 정상수집, 원본 데이터 희소)", f"{n_gita}건"),
+        ("의도적 미수집 — '기타' 전형(재외국민/외국인/북한이탈 등, 출력 제외)", f"{n_gita}건"),
         ("소요 시간", f"{m}분 {s}초"),
     ]
     ws.append(["항목", "값"])
@@ -865,7 +868,7 @@ def write_report(records: list[dict], out_path: str | Path, elapsed: float = 0.0
 
     # ── 대학별 ──
     wd = wb.create_sheet("대학별")
-    wd.append(["대학코드", "대학명", "시도", "성공", "실패", "전형요소보유", "기타유형(참고)"])
+    wd.append(["대학코드", "대학명", "시도", "성공", "실패", "전형요소보유", "기타(의도적미수집)"])
     by_univ = {}
     for r in records:
         d = by_univ.setdefault(r["unvCd"], {"name": r["대학명"], "n": 0, "ok": 0, "err": 0, "elem": 0, "gita": 0})
@@ -873,7 +876,7 @@ def write_report(records: list[dict], out_path: str | Path, elapsed: float = 0.0
         d["ok"] += r["status"] == "ok"
         d["err"] += r["status"] == "error"
         d["elem"] += r["status"] == "ok" and r["has_elem"]
-        d["gita"] += r["status"] == "ok" and bool(r.get("is_gita"))
+        d["gita"] += r["status"] == "기타제외"
     for code, d in by_univ.items():
         wd.append([code, d["name"], d["n"], d["ok"], d["err"], d["elem"], d["gita"]])
     for c in wd[1]:
