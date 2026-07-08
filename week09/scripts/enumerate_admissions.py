@@ -112,7 +112,11 @@ def fetch_units(unv_cd: str, unv_name: str, syr: str = "2027", headless: bool = 
         box.fill(unv_name)
         box.press("Enter")
         page.wait_for_timeout(3000)
-        raw = page.evaluate(_HARVEST_JS, unv_cd)
+        # 이름 검색 autocomplete가 해석한 실제 어디가 코드를 사용(내 csv 코드가 틀릴 수 있음).
+        resolved = page.evaluate(
+            "() => { const e = document.querySelector('#frm [name=searchUnvCode]'); return e ? e.value : ''; }")
+        code = resolved or unv_cd
+        raw = page.evaluate(_HARVEST_JS, code)
         browser.close()
 
     units = []

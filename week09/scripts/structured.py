@@ -942,13 +942,42 @@ def run_all(OUT: Path, ROOT: Path):
     _log(f"=== 전체 완료 — {len(all_records)}건 | ⏱ {el//3600}시간 {el%3600//60}분 ===")
 
 
+def write_combined(OUT: Path):
+    """대학별/*.xlsx 전부 읽어 최신 스키마로 통합 → 전형정보_통합.xlsx (2시트)."""
+    import openpyxl
+    sched_h = list(_IDENT_HEADERS) + list(_SCHED_HEADERS)
+    elem_h = list(_IDENT_HEADERS) + list(_ELEM_HEADERS)
+    all_sched, all_elem = [], []
+    files = sorted((OUT / "대학별").glob("*.xlsx"))
+    for f in files:
+        wb = openpyxl.load_workbook(f, read_only=True)
+        for sheet, acc in (("전형일정및방법", all_sched), ("전형요소", all_elem)):
+            if sheet in wb.sheetnames:
+                for row in wb[sheet].iter_rows(min_row=4, values_only=True):
+                    if any(v not in (None, "") for v in row):
+                        acc.append(list(row))
+        wb.close()
+    wb = Workbook()
+    ws1 = wb.active; ws1.title = "전형일정및방법"
+    ws2 = wb.create_sheet("전형요소")
+    _write_data_sheet(ws1, sched_h, all_sched)
+    _write_data_sheet(ws2, elem_h, all_elem)
+    wb.save(OUT / "전형정보_통합.xlsx")
+    _log(f"통합본: {len(files)}개 대학 | 전형일정 {len(all_sched)}행 / 전형요소 {len(all_elem)}행 → 전형정보_통합.xlsx")
+
+
 def main():
     import json
     ROOT = Path(__file__).resolve().parents[2]
     OUT = ROOT / "week09" / "output"
 
+    if "--combine" in sys.argv:   # 대학별 파일 → 통합본만 재생성
+        write_combined(OUT)
+        return
+
     if "--all" in sys.argv:   # 전체 대학
         run_all(OUT, ROOT)
+        write_combined(OUT)
         return
 
     # 가천대 단독 (기본) / --sample
