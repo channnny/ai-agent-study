@@ -62,11 +62,17 @@ async (unvCd) => {
   const parse = h => new DOMParser().parseFromString(h, 'text/html');
   // 1) 학과(comScsbjtCd) 수집 — 페이지네이션
   const deptMap = {};
-  for (let pg = 1; pg <= 80; pg++) {
-    const doc = parse(await post('/ucp/prc/uni/admssUnivAjax.do', {'pagination.currentPage': String(pg)}));
-    const lis = [...doc.querySelectorAll('li.opnfldClass[comscsbjtcd]')]
+  for (let pg = 1; pg <= 120; pg++) {
+    let doc = parse(await post('/ucp/prc/uni/admssUnivAjax.do', {'pagination.currentPage': String(pg)}));
+    let lis = [...doc.querySelectorAll('li.opnfldClass[comscsbjtcd]')]
                   .filter(li => li.getAttribute('unvcd') === unvCd);
-    if (!lis.length) break;
+    if (!lis.length) {            // 일시적 빈 응답일 수 있음 → 1회 재시도 후 진짜 끝이면 중단
+      await sleep(600);
+      doc = parse(await post('/ucp/prc/uni/admssUnivAjax.do', {'pagination.currentPage': String(pg)}));
+      lis = [...doc.querySelectorAll('li.opnfldClass[comscsbjtcd]')]
+              .filter(li => li.getAttribute('unvcd') === unvCd);
+      if (!lis.length) break;
+    }
     const byCom = {};
     lis.forEach(li => { const c = li.getAttribute('comscsbjtcd');
       (byCom[c] = byCom[c] || []).push((li.textContent || '').replace(/\s+/g,' ').trim()); });
@@ -94,11 +100,24 @@ async (unvCd) => {
 """
 
 
-def fetch_units(unv_cd: str, unv_name: str, syr: str = "2027", headless: bool = True) -> list[dict]:
+def fetch_units(unv_cd: str, unv_name: str, syr: str = "2027", headless: bool = True,
+                retries: int = 3) -> list[dict]:
     """대학 → 모든 (전형×모집단위) 파라미터 tuple. Playwright headless로 세션 워밍.
 
+    열거가 간헐적으로 0/부실할 수 있어(autocomplete·세션 타이밍) 0건이면 재시도한다.
     반환: [{**PARAM_KEYS, '전형명', '학과명'}, ...]
     """
+    best = []
+    for attempt in range(retries):
+        got = _fetch_units_once(unv_cd, unv_name, syr, headless)
+        if len(got) > len(best):
+            best = got
+        if best:            # 1건이라도 나오면 채택(부분 아님을 보장하진 않지만 0건 회피)
+            break
+    return best
+
+
+def _fetch_units_once(unv_cd: str, unv_name: str, syr: str, headless: bool) -> list[dict]:
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as p:
