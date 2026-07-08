@@ -157,6 +157,37 @@ _ELEM_HEADERS = [
 # None이면 해당 원본 컬럼을 스킵.
 
 # ── 원본 표 → 스키마 값 추출 ────────────────────────────────
+PLACEHOLDER = "대학에서 입력된 정보가 없습니다."
+
+
+def _cell(cells: dict, r: int, c: int) -> str:
+    """그리드 셀 읽기 — 원본 '정보 없음' 플레이스홀더는 빈칸으로 치환(피드백#3)."""
+    v = cells.get((r, c), "") or ""
+    return "" if PLACEHOLDER in v else v
+
+
+def _join(vals) -> str:
+    """다중행 값 → ' / ' join, 빈칸 보존(전 표 공통 원칙 — 피드백#1/#5/#7).
+    예: [a,b,'',e] -> 'a / b /  / e'. 전부 빈값이면 ''. 단일값이면 그대로(구분자 없음)."""
+    vals = list(vals) if vals else [""]
+    if not any(v for v in vals):
+        return ""
+    return vals[0] if len(vals) == 1 else " / ".join(vals)
+
+
+def _bigo(html: str) -> str:
+    """전형요소 페이지의 '비고' 섹션 텍스트(피드백#2). caption 있는 <table>이 아니라
+    admssDtlSection 내 <h4>비고</h4> + desc div 구조라 _tables_from()으로는 안 잡힘."""
+    soup = BeautifulSoup(html, "html.parser")
+    for sec in soup.select("div.admssDtlSection"):
+        h4 = sec.select_one(".titArea h4")
+        if h4 and h4.get_text(strip=True) == "비고":
+            desc = sec.select_one(".desc")
+            txt = (desc or sec).get_text(" ", strip=True)
+            return "" if PLACEHOLDER in txt else txt
+    return ""
+
+
 def _expand_grid(cells, nrows, ncols, hrow):
     """header 행 수 탐지 후 데이터 행 반환. 헤더는 th 전체가 True인 행."""
     # 헤더 행 = hrow[r] == True
@@ -227,7 +258,7 @@ def extract_table_data(table, cap_name: str, schema_keys: list[str]) -> dict[str
         for dr in data_rows:
             for k, c in col_map.items():
                 if k in result:
-                    result[k].append(cells.get((dr, c), "") or "")
+                    result[k].append(_cell(cells, dr, c))
 
     elif cap_name == "전형 요소별 반영비율":
         # ncols=13: 선발모형,선발방법,선발비율(%),반영비율x9,기타내용
@@ -240,7 +271,7 @@ def extract_table_data(table, cap_name: str, schema_keys: list[str]) -> dict[str
         for dr in data_rows:
             for i, k in enumerate(key_map):
                 if k in result:
-                    result[k].append(cells.get((dr, i), "") or "")
+                    result[k].append(_cell(cells, dr, i))
 
     elif cap_name == "지원자격 및 기타":
         # ncols=7: 지원자격유형, 세부지원자격, 학력유형, 공통지원자격, 졸업년도(col4,col5 2개 하위셀), 기타(추가사항)
@@ -250,7 +281,7 @@ def extract_table_data(table, cap_name: str, schema_keys: list[str]) -> dict[str
             "제한여부_a", "제한여부_b", "기타(추가사항)",
         ]
         for dr in data_rows:
-            vals = {k: (cells.get((dr, i), "") or "") for i, k in enumerate(key_map)}
+            vals = {k: _cell(cells, dr, i) for i, k in enumerate(key_map)}
             for k in ["지원자격유형", "세부지원자격", "학력유형", "공통지원자격", "기타(추가사항)"]:
                 if k in result:
                     result[k].append(vals[k])
@@ -285,19 +316,19 @@ def extract_table_data(table, cap_name: str, schema_keys: list[str]) -> dict[str
 
         for dr in data_rows:
             if "학생부" in result:
-                result["학생부"].append(cells.get((dr, 0), "") or "")
+                result["학생부"].append(_cell(cells, dr, 0))
             for subj in subj_order:
                 cols = subj_cols[subj]
-                sel = cells.get((dr, cols[0]), "") or ""
-                name = cells.get((dr, cols[1]), "") or "" if len(cols) > 1 else ""
+                sel = _cell(cells, dr, cols[0])
+                name = _cell(cells, dr, cols[1]) if len(cols) > 1 else ""
                 if f"{subj}_선택반영" in result:
                     result[f"{subj}_선택반영"].append(sel)
                 if f"{subj}_과목명" in result:
                     result[f"{subj}_과목명"].append(name)
             if "반영영역수" in result:
-                result["반영영역수"].append(cells.get((dr, 반영영역수_col), "") or "")
+                result["반영영역수"].append(_cell(cells, dr, 반영영역수_col))
             if "세부내용" in result:
-                result["세부내용"].append(cells.get((dr, last_col), "") or "")
+                result["세부내용"].append(_cell(cells, dr, last_col))
 
     elif cap_name in ("학생부 학년별/요소별 반영비율", "학생부학년별/요소별반영비율"):
         # ncols=12: 적용대상졸업년도, 학년공통, 공통비율, 1학년, 2학년, 3학년,
@@ -310,7 +341,7 @@ def extract_table_data(table, cap_name: str, schema_keys: list[str]) -> dict[str
         for dr in data_rows:
             for i, k in enumerate(key_map):
                 if k in result:
-                    result[k].append(cells.get((dr, i), "") or "")
+                    result[k].append(_cell(cells, dr, i))
 
     elif cap_name == "수능 영역별 반영비율":
         # ncols=11: 활용지표,영역수,국어(반영비율/선택과목),수학(반영비율/선택과목),
@@ -326,15 +357,16 @@ def extract_table_data(table, cap_name: str, schema_keys: list[str]) -> dict[str
         for dr in data_rows:
             for i, k in enumerate(key_map):
                 if k in result:
-                    result[k].append(cells.get((dr, i), "") or "")
+                    result[k].append(_cell(cells, dr, i))
 
     elif cap_name == "수능 영역별 등급기준":
-        # ncols=4: 구분,영어,제2외국어/한문,한국사 — 데이터 9행(1~9등급) 컬럼별 ' / ' join
+        # ncols=4: 구분,영어,제2외국어/한문,한국사 — 데이터 9행(1~9등급), 컬럼별 다중행
+        # (join은 build_row의 _first/_join에서 빈칸 보존 처리)
         key_map = ["구분", "영어", "제2외국어/한문", "한국사"]
-        for i, k in enumerate(key_map):
-            if k in result:
-                vals = [cells.get((dr, i), "") or "" for dr in data_rows]
-                result[k].append(" / ".join(v for v in vals if v))
+        for dr in data_rows:
+            for i, k in enumerate(key_map):
+                if k in result:
+                    result[k].append(_cell(cells, dr, i))
 
     elif cap_name == "수능 가(감)산부여":
         # ncols=6: 국어,수학,영어,탐구,제2외국어/한문,한국사
@@ -342,7 +374,7 @@ def extract_table_data(table, cap_name: str, schema_keys: list[str]) -> dict[str
         for dr in data_rows:
             for i, k in enumerate(key_map):
                 if k in result:
-                    result[k].append(cells.get((dr, i), "") or "")
+                    result[k].append(_cell(cells, dr, i))
 
     elif cap_name == "수능 탐구영역 반영사항":
         # ncols=2: 반영과목수,지정과목
@@ -350,7 +382,7 @@ def extract_table_data(table, cap_name: str, schema_keys: list[str]) -> dict[str
         for dr in data_rows:
             for i, k in enumerate(key_map):
                 if k in result:
-                    result[k].append(cells.get((dr, i), "") or "")
+                    result[k].append(_cell(cells, dr, i))
 
     elif cap_name == "서류":
         # ncols=4: 학교생활기록부,특기자실적,기타,기타내용
@@ -358,7 +390,7 @@ def extract_table_data(table, cap_name: str, schema_keys: list[str]) -> dict[str
         for dr in data_rows:
             for i, k in enumerate(key_map):
                 if k in result:
-                    result[k].append(cells.get((dr, i), "") or "")
+                    result[k].append(_cell(cells, dr, i))
 
     elif cap_name == "학생부 교과성적 반영방법":
         # ncols=6: 학년, 교과, 공통과목, 일반선택, 진로선택, 점수산출활용지표
@@ -393,17 +425,17 @@ def extract_table_data(table, cap_name: str, schema_keys: list[str]) -> dict[str
         # 일반 데이터 행 (method_row 제외)
         normal_rows = [r for r in data_rows if r != method_row]
 
+        # 컬럼별 다중행 append (join은 build_row의 _first/_join에서 빈칸 보존 처리)
         for k in ["학년", "교과", "공통과목", "일반선택", "진로선택", "점수산출 활용지표"]:
             if k in result:
                 c = key_map_cols[k]
-                vals = [cells.get((r, c), "") or "" for r in normal_rows]
-                result[k].append(" / ".join(v for v in vals if v))
+                for r in normal_rows:
+                    result[k].append(_cell(cells, r, c))
 
         if "반영교과 및 반영방법" in result:
             if method_row is not None:
                 # col0에 전체 텍스트
-                val = cells.get((method_row, 0), "") or ""
-                result["반영교과 및 반영방법"].append(val)
+                result["반영교과 및 반영방법"].append(_cell(cells, method_row, 0))
             else:
                 result["반영교과 및 반영방법"].append("")
 
@@ -444,6 +476,20 @@ _ELEM_KEYS = [
 ]
 
 
+def _clean_moonit(raw: str) -> str:
+    """B._moonit() 결과 선두 잡음 제거(피드백#4).
+    전형명 자체에 대괄호가 중첩된 경우(예: '수능(일반전형[일반계열])') B._moonit의
+    좌측-최우선 정규식이 전형명 내부 ']'에서 끊겨 ') [ 정시(가) ] IT융합공학전공'처럼
+    잡음 섞인 문자열을 반환한다. 마지막 ']' 이후(= 실제 '[ 수시/정시(가/나/다) ]' 태그
+    뒤) 텍스트만 남기고 선두 ')'·공백을 제거하면 순수 모집단위명만 남는다.
+    정상 케이스(중첩 대괄호 없음)는 그대로 통과(no-op)."""
+    import re
+    s = raw or ""
+    if "]" in s:
+        s = s.rsplit("]", 1)[-1]
+    return re.sub(r"^[)\s]+", "", s).strip()
+
+
 def build_row(u: dict, 대학명: str, hs: str, he: str, sheet: str) -> tuple[list[tuple], list[str]]:
     """(전형일정및방법 | 전형요소) 한 행 생성.
     returns (headers: list[(대,중,소)], values: list[str])
@@ -454,7 +500,7 @@ def build_row(u: dict, 대학명: str, hs: str, he: str, sheet: str) -> tuple[li
     # adiga_selcntnm = 어디가 식별코드 조합 (데이터랩스 정합)
     selcntnm = (f"{u['unvCd']}_{u['comScsbjtCd']}_{u['slcnGroupCd']}-{u['lclsfAftCd']}-"
                 f"{u['slcnTypeCd']}-{u['slcnCd']}-{u['rcmtMmntCd']}-{u['ruSn']}")
-    모집단위명 = B._moonit(hs) or u.get("학과명", "")
+    모집단위명 = _clean_moonit(B._moonit(hs)) or u.get("학과명", "")
     ident_vals = [
         selcntnm, SYR, 대학명, u["unvCd"], 전형명, 전형코드, 모집단위명, u["comScsbjtCd"],
     ]
@@ -494,7 +540,8 @@ def build_row(u: dict, 대학명: str, hs: str, he: str, sheet: str) -> tuple[li
             if "최저학력기준" in detail_tables else {k: [""] for k in sched_keys_4}
 
         def _first(d, k):
-            return (d.get(k) or [""])[0]
+            # 이름은 _first이나 실제로는 다중행 전체를 ' / ' join(빈칸 보존) — 피드백#1/#5/#7
+            return _join(d.get(k) or [""])
 
         values = list(ident_vals) + [
             # 전형일정 (H~M = 6열)
@@ -531,7 +578,8 @@ def build_row(u: dict, 대학명: str, hs: str, he: str, sheet: str) -> tuple[li
         }
 
         def _first(d, k):
-            return (d.get(k) or [""])[0]
+            # 이름은 _first이나 실제로는 다중행 전체를 ' / ' join(빈칸 보존) — 피드백#1/#5/#7
+            return _join(d.get(k) or [""])
 
         # 수능 영역별 반영비율
         e_keys_0a = ["활용지표", "영역수",
@@ -597,8 +645,8 @@ def build_row(u: dict, 대학명: str, hs: str, he: str, sheet: str) -> tuple[li
             _first(d0c, "탐구"), _first(d0c, "제2외국어/한문"), _first(d0c, "한국사"),
             # 수능 탐구영역 반영사항 (AD~AE = 2열)
             _first(d0d, "반영과목수"), _first(d0d, "지정과목"),
-            # 비고 (AF = 1열) — 원본에 대응 표/필드 없음, 항상 빈칸
-            "",
+            # 비고 (AF = 1열) — 표가 아닌 admssDtlSection div(수능 하단) → _bigo()로 별도 추출(피드백#2)
+            _bigo(he),
             # 학생부 학년별/요소별 반영비율 (AG~AR = 12열)
             _first(d1, "적용대상 졸업년도"),
             _first(d1, "학년공통"), _first(d1, "공통비율"),
@@ -716,10 +764,13 @@ WORKERS = 6
 
 def _crawl_one(u: dict, 대학명: str) -> dict:
     """단일 (전형×모집단위) 크롤+빌드. 상태/사유 포함 레코드 반환."""
+    # 원본 전형구분(첫 세그먼트)이 '기타'인지 — 재외국민/외국인/북한이탈 등(피드백#6).
+    # 정상 수집되지만 사이트 원본상 세부 데이터가 희소해 리포트에서 별도 집계.
+    is_gita = u.get("전형명", "").split(">")[0].strip() == "기타"
     rec = {"unvCd": u["unvCd"], "대학명": 대학명,
            "전형명": u.get("전형명", "").split(">")[-1].strip(),
            "학과명": u.get("학과명", ""), "status": "ok", "error": "",
-           "sched": None, "elem": None, "has_elem": False}
+           "sched": None, "elem": None, "has_elem": False, "is_gita": is_gita}
     try:
         hs, he = B.fetch_pages(u)
         _, rec["sched"] = build_row(u, 대학명, hs, he, "전형일정및방법")
@@ -732,37 +783,8 @@ def _crawl_one(u: dict, 대학명: str) -> dict:
     return rec
 
 
-PLACEHOLDER = "대학에서 입력된 정보가 없습니다."
-
-
-def _group_ranges(headers):
-    """식별열 이후 대제목(원본 표)별 연속 컬럼 범위 [(start_col, end_col)] (1-based)."""
-    ranges, i, n = [], N_IDENT, len(headers)
-    while i < n:
-        da = headers[i][0]
-        j = i + 1
-        while j < n and headers[j][0] == da:
-            j += 1
-        ranges.append((i + 1, j))
-        i = j
-    return ranges
-
-
-def _merge_no_data(ws, headers, n_data):
-    """한 그룹(원본 표)이 '대학에서 입력된 정보가 없습니다.'뿐이면 그 행에서 그룹 셀 병합 + 문구 중앙."""
-    for gs, ge in _group_ranges(headers):
-        for r in range(4, 4 + n_data):
-            if any(PLACEHOLDER in str(ws.cell(r, c).value or "") for c in range(gs, ge + 1)):
-                for c in range(gs, ge + 1):
-                    ws.cell(r, c).value = None
-                ws.cell(r, gs).value = PLACEHOLDER
-                if ge > gs:
-                    ws.merge_cells(start_row=r, start_column=gs, end_row=r, end_column=ge)
-                ws.cell(r, gs).alignment = CENTER
-
-
 def _autofit_unmerged(ws):
-    """열 너비 = 가로병합 안 된 셀만 기준. 병합된 대제목·플레이스홀더가 열을
+    """열 너비 = 가로병합 안 된 셀만 기준. 병합된 대제목 헤더가 열을
     쓸데없이 넓히지 않게(병합 텍스트는 병합 범위 위로 오버플로 표시)."""
     hmerges = [(m.min_row, m.max_row, m.min_col, m.max_col)
                for m in ws.merged_cells.ranges if m.max_col > m.min_col]
@@ -788,7 +810,6 @@ def _write_data_sheet(ws, headers, rows):
             cell = ws.cell(row=ri, column=ci, value=val)
             cell.alignment = LEFT
             cell.border = BORDER
-    _merge_no_data(ws, headers, len(rows))
     ws.freeze_panes = "A4"
     _autofit_unmerged(ws)
     _filter(ws, len(headers), len(rows))
@@ -819,6 +840,9 @@ def write_report(records: list[dict], out_path: str | Path, elapsed: float = 0.0
     n_ok = sum(1 for r in records if r["status"] == "ok")
     n_err = sum(1 for r in records if r["status"] == "error")
     n_elem = sum(1 for r in records if r["status"] == "ok" and r["has_elem"])
+    # '기타' 유형(재외국민/외국인/북한이탈 등) — 정상 수집되나 원본 데이터 자체가
+    # 희소한 경우가 많아 실패와 구분해 별도 집계(피드백#6, 실패로 분류하지 않음).
+    n_gita = sum(1 for r in records if r["status"] == "ok" and r.get("is_gita"))
     m, s = divmod(int(elapsed), 60)
 
     wb = Workbook()
@@ -830,6 +854,7 @@ def write_report(records: list[dict], out_path: str | Path, elapsed: float = 0.0
         ("실패", f"{n_err}건"),
         ("성공률", f"{(n_ok/n*100 if n else 0):.1f}%"),
         ("전형요소 보유 전형", f"{n_elem}건"),
+        ("'기타' 유형 전형(재외국민/외국인/북한이탈 등 — 정상수집, 원본 데이터 희소)", f"{n_gita}건"),
         ("소요 시간", f"{m}분 {s}초"),
     ]
     ws.append(["항목", "값"])
@@ -840,16 +865,17 @@ def write_report(records: list[dict], out_path: str | Path, elapsed: float = 0.0
 
     # ── 대학별 ──
     wd = wb.create_sheet("대학별")
-    wd.append(["대학코드", "대학명", "시도", "성공", "실패", "전형요소보유"])
+    wd.append(["대학코드", "대학명", "시도", "성공", "실패", "전형요소보유", "기타유형(참고)"])
     by_univ = {}
     for r in records:
-        d = by_univ.setdefault(r["unvCd"], {"name": r["대학명"], "n": 0, "ok": 0, "err": 0, "elem": 0})
+        d = by_univ.setdefault(r["unvCd"], {"name": r["대학명"], "n": 0, "ok": 0, "err": 0, "elem": 0, "gita": 0})
         d["n"] += 1
         d["ok"] += r["status"] == "ok"
         d["err"] += r["status"] == "error"
         d["elem"] += r["status"] == "ok" and r["has_elem"]
+        d["gita"] += r["status"] == "ok" and bool(r.get("is_gita"))
     for code, d in by_univ.items():
-        wd.append([code, d["name"], d["n"], d["ok"], d["err"], d["elem"]])
+        wd.append([code, d["name"], d["n"], d["ok"], d["err"], d["elem"], d["gita"]])
     for c in wd[1]:
         c.fill = HEAD_FILL; c.font = HEAD_FONT; c.alignment = CENTER
 
