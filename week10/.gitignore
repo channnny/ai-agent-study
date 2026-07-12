@@ -1,0 +1,4 @@
+output/.progress/
+__pycache__/
+*.log
+~$*
