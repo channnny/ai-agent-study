@@ -60,19 +60,26 @@ async (unvCd) => {
     return await r.text();
   };
   const parse = h => new DOMParser().parseFromString(h, 'text/html');
-  // 1) 학과(comScsbjtCd) 수집 — 페이지네이션
+  // 1) 학과(comScsbjtCd) 수집 — 페이지네이션.
+  //   종단은 RAW 학과 유무 기준(캠퍼스는 앞쪽이 본교 페이지라 필터-매칭 기준이면 조기중단됨).
+  //   서버가 범위 밖 페이지를 마지막으로 클램프하는 경우 대비: 신규 학과 3연속 없으면 종단.
   const deptMap = {};
-  for (let pg = 1; pg <= 120; pg++) {
+  let prevSig = '', repeat = 0;
+  for (let pg = 1; pg <= 300; pg++) {
     let doc = parse(await post('/ucp/prc/uni/admssUnivAjax.do', {'pagination.currentPage': String(pg)}));
-    let lis = [...doc.querySelectorAll('li.opnfldClass[comscsbjtcd]')]
-                  .filter(li => li.getAttribute('unvcd') === unvCd);
-    if (!lis.length) {            // 일시적 빈 응답일 수 있음 → 1회 재시도 후 진짜 끝이면 중단
+    let raw = [...doc.querySelectorAll('li.opnfldClass[comscsbjtcd]')];
+    if (!raw.length) {            // 진짜 끝: 페이지에 학과 자체가 없음 → 1회 재시도 후 중단
       await sleep(600);
       doc = parse(await post('/ucp/prc/uni/admssUnivAjax.do', {'pagination.currentPage': String(pg)}));
-      lis = [...doc.querySelectorAll('li.opnfldClass[comscsbjtcd]')]
-              .filter(li => li.getAttribute('unvcd') === unvCd);
-      if (!lis.length) break;
+      raw = [...doc.querySelectorAll('li.opnfldClass[comscsbjtcd]')];
+      if (!raw.length) break;
     }
+    // 종단: 서버가 범위 밖 페이지를 마지막 페이지로 클램프(같은 내용 반복)하면 중단.
+    //   본교 프리픽스 페이지는 시그니처가 매 페이지 달라지므로 정상 진행됨(캠퍼스는 뒷페이지).
+    const sig = raw.map(li => li.getAttribute('comscsbjtcd')).join(',');
+    if (sig === prevSig) { if (++repeat >= 2) break; } else repeat = 0;
+    prevSig = sig;
+    const lis = raw.filter(li => li.getAttribute('unvcd') === unvCd);   // 대상 대학코드만
     const byCom = {};
     lis.forEach(li => { const c = li.getAttribute('comscsbjtcd');
       (byCom[c] = byCom[c] || []).push((li.textContent || '').replace(/\s+/g,' ').trim()); });
@@ -128,13 +135,13 @@ def _fetch_units_once(unv_cd: str, unv_name: str, syr: str, headless: bool) -> l
         # 대학명 검색 → 세션에 대학 선택 등록 + 목록 로드 (실 브라우저 흐름 그대로)
         box = page.get_by_placeholder(re.compile("대학명"))
         box.click()
-        box.fill(unv_name)
-        box.press("Enter")
+        box.fill(unv_name)              # 베이스명(캠퍼스 접미사 제거) → 본교+캠퍼스 모두 세션 워밍
+        # 이 입력은 Enter가 막혀있음(onkeypress return false) → 검색 버튼 클릭으로 필터검색 실행
+        page.click("a.searchTitleBtn")
         page.wait_for_timeout(3000)
-        # 이름 검색 autocomplete가 해석한 실제 어디가 코드를 사용(내 csv 코드가 틀릴 수 있음).
-        resolved = page.evaluate(
-            "() => { const e = document.querySelector('#frm [name=searchUnvCode]'); return e ? e.value : ''; }")
-        code = resolved or unv_cd
+        # 필터는 우리 CSV(어디가 공식) 대학코드로. autocomplete는 동명(서울대→남서울)·
+        # 캠퍼스(고려대→본교)를 오해석하므로 신뢰하지 않는다. 세종/ERICA 등은 뒷페이지에 존재.
+        code = unv_cd
         raw = page.evaluate(_HARVEST_JS, code)
         browser.close()
 
