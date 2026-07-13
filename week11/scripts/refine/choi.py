@@ -141,6 +141,7 @@ def refine_choi(s1, flags: list) -> tuple:
         return tag, tag
     # 단순 단일조건: N=영역수, K=합/등급 숫자
     mK = (re.search(r"등급\s*합\s*(\d+)", txt) or re.search(r"합\s*(?:이|의)?\s*(\d+)", txt)
+          or re.search(r"등급\s*이\s*(\d+)\s*(?:이내|이하)", txt)   # '등급이 3 이내'
           or re.search(r"(\d+)\s*등급\s*(?:이내|이하)", txt))
     if 영역수 and mK:
         return f"{영역수}합{mK.group(1)}", _build_yeongyeok(s1, 영역수, mK.group(1))
