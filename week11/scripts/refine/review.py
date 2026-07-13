@@ -17,10 +17,18 @@ from openpyxl.utils import get_column_letter
 # 정제 시트 컬럼(1-based): 대학명3 전형명5 모집단위7 / ①9→10 ②11 [원]교과12 ③13 [원]진로14 ④15 [원]비율16 5a17 5b18
 COL = dict(대학=3, 전형=5, 모집=7, 원최저=9, 정1=10, 정2=11, 원진로=14, 정4=15, 원비율=16, 정5a=17)
 
+# 항목별 (사유, 해결책)
+POLICY = {
+    "최저-계열별": ("인문/자연 등 계열별 다조건 — 결정적 파싱 부적합", "원본 참고해 계열별 최저 직접 정제"),
+    "최저-파싱": ("최저 문구 비정형(패턴 미인식)", "원본 확인 후 N합M 수기 입력"),
+    "진로-내부확인": ("각주에 A/B/C 환산표 미노출(어디가 소스 한계)", "대학 모집요강/입학처 확인 또는 내부확인 유지"),
+    "5a-단계별": ("단계 배수/요소 매핑 불확실", "원본 대조 스팟체크"),
+}
+
 HEAD_FILL = PatternFill("solid", fgColor="C55A11")
 HEAD_FONT = Font(bold=True, color="FFFFFF", size=9)
 LEFT = Alignment(vertical="top", wrap_text=True)
-WIDTHS = [16, 24, 14, 12, 44, 30, 20]   # 항목·대학·전형·모집·원본·현재정제·검토결과
+WIDTHS = [14, 16, 22, 13, 30, 44, 28, 34, 20]   # 항목·대학·전형·모집·사유·원본·현재·해결책·검토결과
 
 
 def _flagged(r):
@@ -35,7 +43,11 @@ def _flagged(r):
         out.append(("진로-내부확인", s(v("원진로")), "내부확인"))
     if "검증필요" in s(v("정5a")):
         out.append(("5a-단계별", s(v("원비율")), s(v("정5a"))))
-    return [(sub, v("대학"), v("전형"), v("모집"), raw, cur) for sub, raw, cur in out]
+    res = []
+    for sub, raw, cur in out:
+        사유, 해결책 = POLICY.get(sub, ("", ""))
+        res.append((sub, v("대학"), v("전형"), v("모집"), 사유, raw, cur, 해결책))
+    return res
 
 
 def build_review(in_path: Path, out_path: Path = None):
@@ -49,7 +61,7 @@ def build_review(in_path: Path, out_path: Path = None):
 
     out = openpyxl.Workbook()
     sh = out.active; sh.title = "검토필요"
-    sh.append(["항목", "대학명", "전형명", "모집단위명", "[원본]", "[현재 정제]", "검토결과(직접입력)"])
+    sh.append(["항목", "대학명", "전형명", "모집단위명", "사유(왜 검토필요)", "[원본]", "[현재 정제]", "해결책(권장)", "검토결과(직접입력)"])
     for row in items:
         sh.append(list(row) + [""])
     for cell in sh[1]:
