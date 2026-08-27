@@ -23,6 +23,9 @@ from pathlib import Path
 SAVE_TO_DB = "--db" in sys.argv
 
 BASE_URL = "https://www.adiga.kr/ucp/uvt/uni/univDetailSelection.do"
+# 신규 연도(예: searchSyr=2027의 2026학년도 결과)부터 어디가는 '전형 결과' 표를
+# accordion 펼침 시 비동기(AJAX)로 로드한다. 정적 HTML엔 빈 껍데기만 온다.
+AJAX_RESULT_URL = "https://www.adiga.kr/uct/acd/ade/criteriaAndResultItemNewAjax.do"
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -97,25 +100,30 @@ def _is_number(s) -> bool:
         return False
 
 
-def _flatten_table(grid: List[List[str]]):
+def _flatten_table(grid: List[List[str]], n_header_hint=None):
     """grid → (전형명, 평면 헤더 리스트, 데이터 행 리스트).
 
     어디가 입결 표는 다단 헤더(rowspan/colspan)다. 헤더 행을 식별해 세로로
     결합하고("학생부등급"+"70% cut" → "학생부등급 70% cut"), 전체 colspan을
-    덮는 전형명 행은 별도로 분리한다.
+    덮는 전형명 행은 별도로 분리한다. n_header_hint가 주어지면(예: <thead> 행 수)
+    숫자비율 휴리스틱 대신 그 값을 헤더 행 수로 쓴다(다단 헤더에 '50%/70%'처럼
+    숫자형 서브헤더가 있어도 정확히 분리).
     """
     ncol = max(len(r) for r in grid)
 
-    # 헤더 행 수 판정: 첫 컬럼 제외, 숫자 비율이 40% 이상이면 데이터 행
-    n_header = 0
-    for row in grid:
-        vals = row[1:] if len(row) > 1 else row
-        nums = sum(1 for v in vals if _is_number(v))
-        ratio = nums / len(vals) if vals else 0
-        if ratio >= 0.4:
-            break
-        n_header += 1
-    n_header = max(1, min(n_header, len(grid) - 1))
+    if n_header_hint is not None:
+        n_header = max(1, min(n_header_hint, len(grid) - 1))
+    else:
+        # 헤더 행 수 판정: 첫 컬럼 제외, 숫자 비율이 40% 이상이면 데이터 행
+        n_header = 0
+        for row in grid:
+            vals = row[1:] if len(row) > 1 else row
+            nums = sum(1 for v in vals if _is_number(v))
+            ratio = nums / len(vals) if vals else 0
+            if ratio >= 0.4:
+                break
+            n_header += 1
+        n_header = max(1, min(n_header, len(grid) - 1))
 
     headers, data = grid[:n_header], grid[n_header:]
 
@@ -143,8 +151,54 @@ def _flatten_table(grid: List[List[str]]):
     return jeonghyeong, flat, data
 
 
+def _fetch_result_ajax(onclick: str) -> BeautifulSoup:
+    """동적 로딩(신규 연도) 전형결과를 AJAX로 받아 fragment soup 반환.
+
+    버튼 onclick="fnItemSearchInclude(this, event, syr, unvCd, upCd, compUnvCd)"
+    에서 인자를 뽑아 criteriaAndResultItemNewAjax.do로 POST한다.
+    """
+    m = re.search(
+        r'fnItemSearchInclude\([^,]+,[^,]+,\s*"([^"]*)",\s*"([^"]*)",\s*"([^"]*)",\s*"([^"]*)"',
+        onclick or "")
+    if not m:
+        return None
+    syr, unv_cd, up_cd, comp = m.groups()
+    headers = {**HEADERS, "X-Requested-With": "XMLHttpRequest", "Referer": BASE_URL}
+    resp = requests.post(
+        AJAX_RESULT_URL,
+        data={"searchSyr": syr, "unvCd": unv_cd,
+              "tsrdCmphSlcnArtclUpCd": up_cd, "compUnvCd": comp},
+        headers=headers, timeout=15)
+    resp.raise_for_status()
+    return BeautifulSoup(resp.text, "html.parser")
+
+
+def _tables_from_soup(container: BeautifulSoup, tab_name: str) -> List[pd.DataFrame]:
+    """fragment/accordion 내부 soup → 전형결과 DataFrame 리스트."""
+    tables = []
+    for table in container.find_all("table"):
+        grid = _table_to_grid(table)
+        if not grid or len(grid) < 2:
+            continue
+        # <thead>가 있으면 헤더 행 수를 정확히 알 수 있어 다단 헤더를 깔끔히 분리.
+        thead = table.find("thead")
+        n_hint = len(thead.find_all("tr")) if thead else None
+        jeonghyeong, flat_hdr, data = _flatten_table(grid, n_hint)
+        if not data:
+            continue
+        ncol = len(flat_hdr)
+        data = [r + [""] * (ncol - len(r)) for r in data]  # 길이 보정
+        df = pd.DataFrame(data, columns=flat_hdr)
+        if "전형" not in df.columns:
+            df.insert(0, "전형", jeonghyeong or tab_name)
+        tables.append(df)
+    return tables
+
+
 def extract_result_tables(soup: BeautifulSoup) -> List[dict]:
     tab_btns = soup.find_all("button", class_="btnTab")
+    if not tab_btns:
+        return []   # 전형 탭이 없는 대학(미게시/구조상이) → 빈 결과
     ul = tab_btns[0].find_parent("ul")
     tab_panels = ul.find_next_siblings("div", class_="tabCon")
 
@@ -152,41 +206,31 @@ def extract_result_tables(soup: BeautifulSoup) -> List[dict]:
     for btn, panel in zip(tab_btns, tab_panels):
         tab_name = btn.get_text(strip=True)
 
+        # '전형 결과' 아코디언 검출 — 버튼 '텍스트' 기준(연도별 마크업 차이 흡수).
+        # 구버전은 제목이 span.qType, 신규(2027~)는 span.h4라 클래스 의존 불가.
         result_btn = None
         for acc_btn in panel.find_all("button", class_="accordionBtn"):
-            span = acc_btn.find("span", class_="qType")
-            if span and "전형 결과" in span.get_text():
+            if "전형 결과" in acc_btn.get_text():
                 result_btn = acc_btn
                 break
-
         if not result_btn:
             continue
 
         acc_con = result_btn.find_next_sibling("div", class_="accordionCon")
-        inner_soup = BeautifulSoup(acc_con.decode_contents(), "html.parser")
+        inner_soup = BeautifulSoup(acc_con.decode_contents(), "html.parser") if acc_con else None
 
-        tables = []
-        for table in inner_soup.find_all("table"):
-            grid = _table_to_grid(table)
-            if not grid or len(grid) < 2:
-                continue
-            jeonghyeong, flat_hdr, data = _flatten_table(grid)
-            if not data:
-                continue
-            ncol = len(flat_hdr)
-            data = [r + [""] * (ncol - len(r)) for r in data]  # 길이 보정
-            df = pd.DataFrame(data, columns=flat_hdr)
-            # 전형 컬럼: 평면 헤더에 이미 '전형'이 있으면(어디가가 일반 컬럼으로
-            # 제공하는 대학) 그대로 사용, 없으면 추출한 전형명/탭명으로 삽입.
-            if "전형" not in df.columns:
-                df.insert(0, "전형", jeonghyeong or tab_name)
-            tables.append(df)
+        # 정적 표가 비어 있으면(신규 연도 = 동적 로딩) AJAX로 가져온다.
+        if inner_soup is None or not inner_soup.find("table"):
+            frag = _fetch_result_ajax(result_btn.get("onclick", ""))
+            if frag is not None:
+                inner_soup = frag
+
+        tables = _tables_from_soup(inner_soup, tab_name) if inner_soup else []
 
         if tables:
             results.append({"tab": tab_name, "tables": tables})
-        else:
+        elif inner_soup:
             # 표가 없으면 이미지로 전형결과를 올린 대학(예: 가톨릭꽃동네대).
-            # 이미지 URL을 수집해 두면 OCR/비전 모델로 후처리할 수 있다.
             imgs = [im.get("src", "") for im in inner_soup.find_all("img")
                     if "astFileHandler" in (im.get("src", "") or "")]
             if imgs:
